@@ -1,8 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "framework": "nextjs",
-  "rootDirectory": "apps/web",
-  "installCommand": "cd ../.. && pnpm install --frozen-lockfile",
+  "installCommand": "cd ../.. && pnpm install --no-frozen-lockfile",
   "buildCommand": "pnpm --filter @socialpulse/web build",
   "outputDirectory": ".next",
   "headers": [
