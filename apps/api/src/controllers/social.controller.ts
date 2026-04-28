@@ -99,7 +99,7 @@ export async function triggerSync(req: AuthRequest, res: Response): Promise<void
 // Flow: connect → Meta dialog → callback → exchange code → long-lived token
 // → get IG business account → upsert SocialAccount
 
-export function instagramConnect(req: AuthRequest, res: Response): void {
+export async function instagramConnect(req: AuthRequest, res: Response): Promise<void> {
   if (!req.user) { res.status(401).json({ error: 'Unauthorized' }); return }
   const orgId = req.headers['x-org-id'] as string
   if (!orgId) { res.status(400).json({ error: 'x-org-id header required' }); return }
@@ -237,7 +237,7 @@ export async function instagramCallback(req: AuthRequest, res: Response): Promis
 // ── Facebook OAuth ────────────────────────────────────────────
 // Similar to Instagram but connects to the Facebook Page directly
 
-export function facebookConnect(req: AuthRequest, res: Response): void {
+export async function facebookConnect(req: AuthRequest, res: Response): Promise<void> {
   if (!req.user) { res.status(401).json({ error: 'Unauthorized' }); return }
   const orgId = req.headers['x-org-id'] as string
   if (!orgId) { res.status(400).json({ error: 'x-org-id header required' }); return }
@@ -361,7 +361,7 @@ export async function facebookCallback(req: AuthRequest, res: Response): Promise
 
 // ── YouTube OAuth ─────────────────────────────────────────────
 
-export function youtubeConnect(req: AuthRequest, res: Response): void {
+export async function youtubeConnect(req: AuthRequest, res: Response): Promise<void> {
   if (!req.user) { res.status(401).json({ error: 'Unauthorized' }); return }
   const orgId = req.headers['x-org-id'] as string
   if (!orgId) { res.status(400).json({ error: 'x-org-id header required' }); return }

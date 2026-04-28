@@ -5,7 +5,7 @@ import { authenticate } from '../middleware/auth'
 import { wrapAuth } from '../lib/asyncHandler'
 import { listOrgs, getOrg, createOrg, updateOrg, deleteOrg, switchOrg } from '../controllers/org.controller'
 
-const router = Router()
+const router: ReturnType<typeof Router> = Router()
 
 const platformValues = ['INSTAGRAM', 'FACEBOOK', 'YOUTUBE', 'WHATSAPP', 'GOOGLE'] as const
 

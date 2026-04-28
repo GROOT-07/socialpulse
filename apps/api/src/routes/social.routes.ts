@@ -13,7 +13,7 @@ import {
   youtubeCallback,
 } from '../controllers/social.controller'
 
-const router = Router()
+const router: ReturnType<typeof Router> = Router()
 
 // ── OAuth connect initiation (returns redirect URL) ───────────
 router.get('/auth/instagram/connect', authenticate, wrapAuth(instagramConnect))

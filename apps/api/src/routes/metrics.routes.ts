@@ -7,7 +7,7 @@ import {
   getKpiMetrics,
 } from '../controllers/metrics.controller'
 
-const router = Router()
+const router: ReturnType<typeof Router> = Router()
 router.use(authenticate)
 
 router.get('/kpis', wrapAuth(getKpiMetrics))

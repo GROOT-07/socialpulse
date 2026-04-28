@@ -9,7 +9,7 @@ import {
   getPlaybook, updatePlaybookSection,
 } from '../controllers/strategy.controller'
 
-const router = Router()
+const router: ReturnType<typeof Router> = Router()
 router.use(authenticate)
 
 // Goals
