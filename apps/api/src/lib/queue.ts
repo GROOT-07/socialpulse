@@ -1,7 +1,7 @@
-import { Queue } from 'bullmq'
+import { Queue, type DefaultJobOptions } from 'bullmq'
 import { redis } from './redis'
 
-function makeQueue(name: string, defaultJobOptions: ConstructorParameters<typeof Queue>[1]['defaultJobOptions']): Queue {
+function makeQueue(name: string, defaultJobOptions: DefaultJobOptions): Queue {
   const q = new Queue(name, { connection: redis, defaultJobOptions })
   // Prevent unhandled 'error' events from crashing the process.
   // Workers handle connection errors individually via their own error listeners.
