@@ -48,7 +48,7 @@ function IdeaDialog({ open, onClose, initial }: { open: boolean; onClose: () => 
         description: form.description || null,
         platform: form.platform || null,
         captionStarter: form.captionStarter || null,
-        status: form.status,
+        status: form.status as 'BACKLOG' | 'SCHEDULED' | 'DONE',
       }
       return initial?.id ? ideasApi.update(initial.id, payload) : ideasApi.create(payload)
     },

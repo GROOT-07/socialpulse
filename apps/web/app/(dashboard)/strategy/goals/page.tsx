@@ -48,13 +48,13 @@ function GoalDialog({ open, onClose, initial }: { open: boolean; onClose: () => 
     mutationFn: () => {
       const payload = {
         title: form.title, description: form.description || null,
-        platform: form.platform || null,
+        platform: (form.platform || null) as 'INSTAGRAM' | 'FACEBOOK' | 'YOUTUBE' | null,
         metric: form.metric || 'followers',
         targetValue: form.targetValue ? Number(form.targetValue) : 0,
         currentValue: form.currentValue ? Number(form.currentValue) : 0,
         unit: form.unit || null,
         dueDate: form.dueDate ? new Date(form.dueDate).toISOString() : null,
-        status: form.status,
+        status: form.status as 'ACTIVE' | 'ACHIEVED' | 'MISSED',
       }
       return initial ? strategyApi.updateGoal(initial.id, payload) : strategyApi.createGoal(payload)
     },

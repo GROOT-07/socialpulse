@@ -96,7 +96,7 @@ function AddCompetitorDialog({ open, onClose }: { open: boolean; onClose: () => 
   const qc = useQueryClient()
   const [form, setForm] = useState({ name: '', platform: 'INSTAGRAM', handle: '' })
   const mutation = useMutation({
-    mutationFn: () => competitorApi.add({ name: form.name, platform: form.platform, handle: form.handle }),
+    mutationFn: () => competitorApi.add({ name: form.name, platform: form.platform as 'INSTAGRAM' | 'FACEBOOK' | 'YOUTUBE', handle: form.handle }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['competitors'] })
       toast.success('Competitor added')
