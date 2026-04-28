@@ -319,4 +319,11 @@ export async function refreshExpiringTokens(socialAccountId?: string): Promise<v
         data: {
           accessToken: encrypt(refreshed.accessToken),
           tokenExpiresAt: new Date(Date.now() + refreshed.expiresIn * 1000),
-   
+        },
+      })
+      console.info(`✅ Refreshed token for SocialAccount ${account.id}`)
+    } catch (err) {
+      console.error(`❌ Failed to refresh token for SocialAccount ${account.id}:`, err)
+    }
+  }
+}

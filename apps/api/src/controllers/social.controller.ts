@@ -451,4 +451,6 @@ export async function youtubeCallback(req: AuthRequest, res: Response): Promise<
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error'
     console.error('[youtube-callback]', message)
-    res.redirect(`${WEB_BASE}/settings/accounts?
+    res.redirect(`${WEB_BASE}/settings/accounts?error=${encodeURIComponent(message)}`)
+  }
+}
