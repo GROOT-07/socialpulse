@@ -13,7 +13,7 @@ import {
   getMe,
 } from '../controllers/auth.controller'
 
-const router = Router()
+const router: ReturnType<typeof Router> = Router()
 
 // ── Validation schemas ────────────────────────────────────────
 

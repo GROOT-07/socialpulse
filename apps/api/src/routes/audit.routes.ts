@@ -6,7 +6,7 @@ import {
   toggleAuditItem,
 } from '../controllers/audit.controller'
 
-const router = Router()
+const router: ReturnType<typeof Router> = Router()
 router.use(authenticate)
 
 router.get('/', wrapAuth(getAudit))

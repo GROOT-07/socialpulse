@@ -4,7 +4,7 @@ import { validateEnv, startWorkersSafely } from './lib/startup'
 // ── Validate env before anything else touches process.env ─────
 validateEnv()
 
-import express from 'express'
+import express, { type Application } from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
 import compression from 'compression'
@@ -31,7 +31,7 @@ import { createTokenRefreshWorker } from './workers/tokenRefresh.worker'
 import { createCompetitorWorker } from './workers/competitor.worker'
 import { createBriefWorker } from './workers/brief.worker'
 
-const app = express()
+const app: Application = express()
 const PORT = Number(process.env.PORT ?? 4000)
 
 // ── Security & parsing ────────────────────────────────────────
@@ -106,20 +106,4 @@ app.listen(PORT, async () => {
   console.info(`🚀 SocialPulse API running on http://localhost:${PORT}`)
 
   // Start BullMQ workers — wrapped so a Redis outage doesn't crash the process
-  await startWorkersSafely([
-    { name: 'Metrics worker',       start: createMetricsWorker },
-    { name: 'Token refresh worker', start: createTokenRefreshWorker },
-    { name: 'Competitor worker',    start: createCompetitorWorker },
-    { name: 'Daily brief worker',   start: createBriefWorker },
-  ])
-
-  // Schedule recurring cron jobs (safe — logs error if Redis unavailable)
-  try {
-    await scheduleRecurringJobs()
-    console.info('[startup] ✅ Recurring jobs scheduled')
-  } catch (err) {
-    console.error('[startup] ❌ Could not schedule recurring jobs:', (err as Error).message)
-  }
-})
-
-export default app
+  await startWorkersS

@@ -1,6 +1,7 @@
 import type { Response } from 'express'
 import type { AuthRequest } from '../middleware/auth'
 import { prisma } from '../lib/prisma'
+import type { Prisma } from '@prisma/client'
 
 function org(req: AuthRequest): string { return (req.headers['x-org-id'] as string) || '' }
 
@@ -107,12 +108,29 @@ export async function getVoice(req: AuthRequest, res: Response): Promise<void> {
 
 export async function upsertVoice(req: AuthRequest, res: Response): Promise<void> {
   const body = req.body as {
-    tone?: string; vocabulary?: string; doList?: string; dontList?: string; examplePost?: string
+    adjectives?: string[]
+    personality?: string
+    dos?: string[]
+    donts?: string[]
+    toneByPlatform?: Prisma.InputJsonValue
+    captionGood?: string
+    captionBad?: string
+    aiGenerated?: boolean
+  }
+  const data = {
+    ...(body.adjectives !== undefined && { adjectives: body.adjectives }),
+    ...(body.personality !== undefined && { personality: body.personality }),
+    ...(body.dos !== undefined && { dos: body.dos }),
+    ...(body.donts !== undefined && { donts: body.donts }),
+    ...(body.toneByPlatform !== undefined && { toneByPlatform: body.toneByPlatform }),
+    ...(body.captionGood !== undefined && { captionGood: body.captionGood }),
+    ...(body.captionBad !== undefined && { captionBad: body.captionBad }),
+    ...(body.aiGenerated !== undefined && { aiGenerated: body.aiGenerated }),
   }
   const voice = await prisma.brandVoice.upsert({
     where: { orgId: org(req) },
-    update: body,
-    create: { orgId: org(req), ...body },
+    update: data,
+    create: { orgId: org(req), ...data },
   })
   res.json({ data: { voice } })
 }
@@ -126,17 +144,22 @@ export async function listPillars(req: AuthRequest, res: Response): Promise<void
 
 export async function createPillar(req: AuthRequest, res: Response): Promise<void> {
   const body = req.body as {
-    title: string; description?: string | null; percentage?: number | null
-    color?: string | null; examples?: string | null
+    title: string
+    description?: string | null
+    postingRatio?: number | null
+    colorHex?: string | null
+    exampleFormats?: string[]
+    captionStarters?: string[]
   }
   const pillar = await prisma.contentPillar.create({
     data: {
       orgId: org(req),
       title: body.title,
-      description: body.description,
-      percentage: body.percentage,
-      color: body.color,
-      examples: body.examples,
+      description: body.description ?? undefined,
+      postingRatio: body.postingRatio ?? 20,
+      colorHex: body.colorHex ?? '#4F6EF7',
+      exampleFormats: body.exampleFormats ?? [],
+      captionStarters: body.captionStarters ?? [],
     },
   })
   res.status(201).json({ data: { pillar } })
@@ -158,10 +181,16 @@ export async function deletePillar(req: AuthRequest, res: Response): Promise<voi
 // ── Playbook ──────────────────────────────────────────────────
 
 function mapPlaybookSection(s: {
-  id: string; sectionType: string; content: object; generatedByAI: boolean; updatedAt: Date
+  id: string
+  sectionType: string
+  content: Prisma.JsonValue
+  generatedByAI: boolean
+  updatedAt: Date
 }) {
-  const raw = s.content as Record<string, unknown>
-  const text = typeof raw?.text === 'string' ? raw.text : null
+  const raw = (s.content && typeof s.content === 'object' && !Array.isArray(s.content))
+    ? s.content as Record<string, unknown>
+    : null
+  const text = typeof raw?.['text'] === 'string' ? raw['text'] : null
   return {
     id: s.id,
     sectionType: s.sectionType,
@@ -188,13 +217,14 @@ export async function updatePlaybookSection(req: AuthRequest, res: Response): Pr
   const { sectionType } = req.params
   const orgId = org(req)
   const { content } = req.body as { content: string }
+  const jsonContent = { text: content } as unknown as Prisma.InputJsonValue
   const section = await prisma.playbookSection.upsert({
     where: { orgId_sectionType: { orgId, sectionType: sectionType as 'BRAND_VOICE' | 'STRATEGY' | 'POSTING_GUIDE' | 'OUTREACH' } },
-    update: { content: { text: content } as object, generatedByAI: false },
+    update: { content: jsonContent, generatedByAI: false },
     create: {
       orgId,
       sectionType: sectionType as 'BRAND_VOICE' | 'STRATEGY' | 'POSTING_GUIDE' | 'OUTREACH',
-      content: { text: content } as object,
+      content: jsonContent,
       generatedByAI: false,
     },
   })

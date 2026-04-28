@@ -9,7 +9,7 @@ import {
   generateIdeasHandler,
 } from '../controllers/ideas.controller'
 
-const router = Router()
+const router: ReturnType<typeof Router> = Router()
 router.use(authenticate)
 
 router.get('/', wrapAuth(listIdeas))

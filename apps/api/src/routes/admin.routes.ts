@@ -9,7 +9,7 @@ import {
   resetOrgData,
 } from '../controllers/admin.controller'
 
-const router = Router()
+const router: ReturnType<typeof Router> = Router()
 router.use(authenticate)
 
 router.get('/orgs', wrapAuth(listOrgs))

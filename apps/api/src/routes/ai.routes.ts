@@ -9,7 +9,7 @@ import {
   generateVoiceHandler,
 } from '../controllers/ai.controller'
 
-const router = Router()
+const router: ReturnType<typeof Router> = Router()
 router.use(authenticate)
 
 router.get('/gap-analysis', wrapAuth(gapAnalysis))

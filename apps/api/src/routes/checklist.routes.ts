@@ -8,7 +8,7 @@ import {
   resetChecklist,
 } from '../controllers/checklist.controller'
 
-const router = Router()
+const router: ReturnType<typeof Router> = Router()
 router.use(authenticate)
 
 router.get('/', wrapAuth(getChecklist))
