@@ -14,7 +14,7 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
 import { orgsApi, socialApi, competitorApi } from '@/lib/api'
-import { useOrgStore } from '@/store/orgStore'
+import { useOrgStore } from '@/store/org.store'
 import { toast } from 'sonner'
 
 const STEPS = [
