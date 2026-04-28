@@ -1,0 +1,6 @@
+export type ContentFormat = 'REEL' | 'CAROUSEL' | 'STORY' | 'POST' | 'SHORT' | 'VIDEO'
+export type PostStatus = 'PLANNED' | 'PUBLISHED' | 'SKIPPED'
+export type GoalStatus = 'ACTIVE' | 'ACHIEVED' | 'MISSED'
+export type IdeaStatus = 'BACKLOG' | 'SCHEDULED' | 'DONE'
+export type Priority = 'MUST' | 'HIGH' | 'MEDIUM'
+export type PlaybookSectionType = 'BRAND_VOICE' | 'STRATEGY' | 'POSTING_GUIDE' | 'OUTREACH'

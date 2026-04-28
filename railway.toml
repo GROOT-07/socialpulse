@@ -1,0 +1,30 @@
+# ─────────────────────────────────────────────────────────────
+# SocialPulse — Railway deployment config
+# Docs: https://docs.railway.app/reference/config-as-code
+# ─────────────────────────────────────────────────────────────
+
+[build]
+# Use Nixpacks (Railway's default builder — no Dockerfile needed)
+# Switch to "dockerfile" if you prefer the Dockerfile approach:
+#   builder = "dockerfile"
+#   dockerfilePath = "Dockerfile"
+builder = "nixpacks"
+buildCommand = "pnpm install --frozen-lockfile && pnpm --filter @socialpulse/api exec prisma generate && pnpm --filter @socialpulse/api run build"
+
+[deploy]
+# Migrate DB then start the compiled server
+startCommand = "node apps/api/dist/index.js"
+# Run migrations as a pre-deploy step via Railway's deploy hooks:
+#   Set RAILWAY_RUN_MIGRATION_CMD in your service settings, OR
+#   use the startCommand below which bundles migrate + serve:
+# startCommand = "cd apps/api && npx prisma migrate deploy && cd ../.. && node apps/api/dist/index.js"
+
+healthcheckPath = "/health"
+healthcheckTimeout = 30
+
+restartPolicyType = "on-failure"
+restartPolicyMaxRetries = 3
+
+[[deploy.environmentVariables]]
+# Railway injects PORT automatically — read it in your app via process.env.PORT
+# All other vars must be set in the Railway dashboard → Variables tab

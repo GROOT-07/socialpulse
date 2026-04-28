@@ -1,0 +1,17 @@
+node_modules
+.next
+dist
+.env
+.env.local
+.env*.local
+*.log
+.turbo
+*.tsbuildinfo
+.git
+.gitignore
+README.md
+DEPLOYMENT.md
+SocialPulse_Build_Report.docx
+docker-compose.yml
+apps/web
+packages/*/node_modules

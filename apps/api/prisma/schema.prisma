@@ -1,0 +1,410 @@
+// SocialPulse — Prisma Schema v1.0
+// Generated per MASTER_PROMPT.md Part 3
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DATABASE_URL")
+}
+
+// ─── Enums ─────────────────────────────────────────────────────────────────
+
+enum UserRole {
+  SUPER_ADMIN
+  ORG_ADMIN
+  VIEWER
+}
+
+enum Platform {
+  INSTAGRAM
+  FACEBOOK
+  YOUTUBE
+  WHATSAPP
+  GOOGLE
+}
+
+enum ContentFormat {
+  REEL
+  CAROUSEL
+  STORY
+  POST
+  SHORT
+  VIDEO
+}
+
+enum PostStatus {
+  PLANNED
+  PUBLISHED
+  SKIPPED
+}
+
+enum GoalStatus {
+  ACTIVE
+  ACHIEVED
+  MISSED
+}
+
+enum IdeaStatus {
+  BACKLOG
+  SCHEDULED
+  DONE
+}
+
+enum Priority {
+  MUST
+  HIGH
+  MEDIUM
+}
+
+enum PlaybookSectionType {
+  BRAND_VOICE
+  STRATEGY
+  POSTING_GUIDE
+  OUTREACH
+}
+
+// ─── Models ────────────────────────────────────────────────────────────────
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  role         UserRole @default(ORG_ADMIN)
+  activeOrgId  String?
+
+  // Relations
+  ownedOrgs      Organization[] @relation("OrgOwner")
+  orgMemberships OrgMember[]
+  refreshTokens  RefreshToken[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@map("refresh_tokens")
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  email     String
+  token     String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  @@map("password_reset_tokens")
+}
+
+model Organization {
+  id               String     @id @default(cuid())
+  name             String
+  slug             String     @unique
+  logoUrl          String?
+  brandColor       String?    @default("#4F6EF7")
+  industry         String
+  city             String?
+  country          String?
+  timezone         String     @default("UTC")
+  activePlatforms  Platform[]
+  ownerId          String
+  owner            User       @relation("OrgOwner", fields: [ownerId], references: [id])
+
+  // Relations
+  members          OrgMember[]
+  socialAccounts   SocialAccount[]
+  competitors      Competitor[]
+  contentCalendar  ContentCalendar[]
+  goals            Goal[]
+  personas         Persona[]
+  contentPillars   ContentPillar[]
+  checklistItems   ChecklistItem[]
+  auditItems       AuditItem[]
+  ideas            Idea[]
+  playbookSections PlaybookSection[]
+  dailyBriefs      DailyBrief[]
+  voiceProfile     BrandVoice?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("organizations")
+}
+
+model OrgMember {
+  id     String   @id @default(cuid())
+  orgId  String
+  org    Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  userId String
+  user   User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   UserRole     @default(VIEWER)
+
+  invitedAt  DateTime  @default(now())
+  acceptedAt DateTime?
+
+  @@unique([orgId, userId])
+  @@map("org_members")
+}
+
+model SocialAccount {
+  id             String    @id @default(cuid())
+  orgId          String
+  org            Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  platform       Platform
+  handle         String?
+  profileUrl     String?
+  // Encrypted with AES-256 (ENCRYPTION_KEY env var)
+  accessToken    String?
+  refreshToken   String?
+  tokenExpiresAt DateTime?
+  connectedAt    DateTime  @default(now())
+
+  metrics SocialMetrics[]
+
+  @@unique([orgId, platform])
+  @@map("social_accounts")
+}
+
+model SocialMetrics {
+  id              String        @id @default(cuid())
+  socialAccountId String
+  socialAccount   SocialAccount @relation(fields: [socialAccountId], references: [id], onDelete: Cascade)
+  snapshotDate    DateTime      @db.Date
+  followers       Int           @default(0)
+  following       Int           @default(0)
+  posts           Int           @default(0)
+  engagementRate  Float         @default(0)
+  reach           Int           @default(0)
+  impressions     Int           @default(0)
+  avgLikes        Float         @default(0)
+  avgComments     Float         @default(0)
+  rawJson         Json?
+
+  createdAt DateTime @default(now())
+
+  @@unique([socialAccountId, snapshotDate])
+  @@map("social_metrics")
+}
+
+model Competitor {
+  id         String       @id @default(cuid())
+  orgId      String
+  org        Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  platform   Platform
+  handle     String
+  profileUrl String?
+  addedAt    DateTime     @default(now())
+
+  metrics    CompetitorMetrics[]
+
+  @@unique([orgId, platform, handle])
+  @@map("competitors")
+}
+
+model CompetitorMetrics {
+  id             String     @id @default(cuid())
+  competitorId   String
+  competitor     Competitor @relation(fields: [competitorId], references: [id], onDelete: Cascade)
+  snapshotDate   DateTime   @db.Date
+  followers      Int        @default(0)
+  engagementRate Float      @default(0)
+  avgLikes       Float      @default(0)
+  avgComments    Float      @default(0)
+  topPostUrl     String?
+  topPostLikes   Int        @default(0)
+  rawJson        Json?
+
+  createdAt DateTime @default(now())
+
+  @@unique([competitorId, snapshotDate])
+  @@map("competitor_metrics")
+}
+
+model ContentCalendar {
+  id           String        @id @default(cuid())
+  orgId        String
+  org          Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  date         DateTime      @db.Date
+  time         String?       // "14:30" 24h format
+  platform     Platform
+  topic        String
+  contentPillar String?
+  format       ContentFormat @default(POST)
+  caption      String?
+  notes        String?
+  status       PostStatus    @default(PLANNED)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("content_calendar")
+}
+
+model Goal {
+  id           String       @id @default(cuid())
+  orgId        String
+  org          Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  title        String
+  description  String?
+  platform     Platform?
+  metric       String       // "followers", "engagementRate", etc.
+  targetValue  Float
+  currentValue Float        @default(0)
+  unit         String       @default("")
+  dueDate      DateTime?
+  status       GoalStatus   @default(ACTIVE)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("goals")
+}
+
+model Persona {
+  id                String       @id @default(cuid())
+  orgId             String
+  org               Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  name              String
+  ageRange          String?
+  gender            String?
+  location          String?
+  interests         String[]
+  platforms         Platform[]
+  painPoints        String[]
+  contentPreference String?
+  aiGenerated       Boolean      @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("personas")
+}
+
+model BrandVoice {
+  id           String       @id @default(cuid())
+  orgId        String       @unique
+  org          Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  adjectives   String[]     // 5 voice adjectives
+  personality  String?      // e.g. "The Helpful Expert"
+  dos          String[]     // Do's
+  donts        String[]     // Don'ts
+  toneByPlatform Json?      // { INSTAGRAM: "...", FACEBOOK: "..." }
+  captionGood  String?
+  captionBad   String?
+  aiGenerated  Boolean      @default(false)
+
+  updatedAt DateTime @updatedAt
+
+  @@map("brand_voice")
+}
+
+model ContentPillar {
+  id              String       @id @default(cuid())
+  orgId           String
+  org             Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  title           String
+  description     String?
+  colorHex        String       @default("#4F6EF7")
+  postingRatio    Int          @default(20) // percentage 0-100
+  exampleFormats  String[]
+  captionStarters String[]
+
+  ideas Idea[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("content_pillars")
+}
+
+model ChecklistItem {
+  id          String       @id @default(cuid())
+  orgId       String
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  platform    Platform
+  title       String
+  description String?
+  priority    Priority     @default(MEDIUM)
+  isDone      Boolean      @default(false)
+  doneAt      DateTime?
+  isCustom    Boolean      @default(false)
+
+  createdAt DateTime @default(now())
+
+  @@map("checklist_items")
+}
+
+model AuditItem {
+  id       String       @id @default(cuid())
+  orgId    String
+  org      Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  platform Platform
+  category String
+  title    String
+  isDone   Boolean      @default(false)
+  score    Int          @default(0) // 0-100
+
+  @@map("audit_items")
+}
+
+model Idea {
+  id          String        @id @default(cuid())
+  orgId       String
+  org         Organization  @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  platform    Platform?
+  pillarId    String?
+  pillar      ContentPillar? @relation(fields: [pillarId], references: [id])
+  captionStarter String?
+  status      IdeaStatus    @default(BACKLOG)
+  aiGenerated Boolean       @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("ideas")
+}
+
+model PlaybookSection {
+  id             String              @id @default(cuid())
+  orgId          String
+  org            Organization        @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  sectionType    PlaybookSectionType
+  content        Json
+  generatedByAI  Boolean             @default(false)
+
+  updatedAt DateTime @updatedAt
+
+  @@unique([orgId, sectionType])
+  @@map("playbook_sections")
+}
+
+model DailyBrief {
+  id             String       @id @default(cuid())
+  orgId          String
+  org            Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  date           DateTime     @db.Date
+  summary        String
+  pendingTasks   Json         @default("[]")
+  scheduledPosts Json         @default("[]")
+  ideaOfDay      String?
+  competitorPulse Json?
+  generatedAt    DateTime     @default(now())
+
+  @@unique([orgId, date])
+  @@map("daily_briefs")
+}
