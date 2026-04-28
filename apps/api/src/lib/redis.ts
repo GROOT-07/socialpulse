@@ -9,10 +9,20 @@ declare global {
 
 const REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6379'
 
+function makeRedis(opts: ConstructorParameters<typeof Redis>[1]): Redis {
+  const client = new Redis(REDIS_URL, opts)
+  // Prevent unhandled 'error' events from crashing the process.
+  // Connection failures are expected when Redis is temporarily unavailable.
+  client.on('error', (err: Error) => {
+    console.error('[redis] connection error:', err.message)
+  })
+  return client
+}
+
 // Standard connection — used by Queues and general cache ops
 export const redis =
   global.__redis ??
-  new Redis(REDIS_URL, {
+  makeRedis({
     maxRetriesPerRequest: 3,
     enableReadyCheck: false,
     lazyConnect: true,
@@ -21,7 +31,7 @@ export const redis =
 // Worker connection — BullMQ Workers require maxRetriesPerRequest: null
 export const redisWorker =
   global.__redisWorker ??
-  new Redis(REDIS_URL, {
+  makeRedis({
     maxRetriesPerRequest: null,
     enableReadyCheck: false,
     lazyConnect: true,

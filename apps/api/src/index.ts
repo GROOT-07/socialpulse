@@ -4,6 +4,12 @@ import { validateEnv, startWorkersSafely } from './lib/startup'
 // ── Validate env before anything else touches process.env ─────
 validateEnv()
 
+// ── Prevent Redis/BullMQ connection errors from crashing the process ──
+process.on('unhandledRejection', (reason) => {
+  const msg = reason instanceof Error ? reason.message : String(reason)
+  console.error('[unhandledRejection] Caught — process will continue:', msg)
+})
+
 import express, { type Application } from 'express'
 import cors from 'cors'
 import helmet from 'helmet'
