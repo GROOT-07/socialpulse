@@ -1,45 +1,43 @@
 import { Queue } from 'bullmq'
 import { redis } from './redis'
 
+function makeQueue(name: string, defaultJobOptions: ConstructorParameters<typeof Queue>[1]['defaultJobOptions']): Queue {
+  const q = new Queue(name, { connection: redis, defaultJobOptions })
+  // Prevent unhandled 'error' events from crashing the process.
+  // Workers handle connection errors individually via their own error listeners.
+  q.on('error', (err) => {
+    console.error(`[queue:${name}] error:`, err.message)
+  })
+  return q
+}
+
 // ── Queue definitions ─────────────────────────────────────────
-export const metricsQueue = new Queue('metrics-sync', {
-  connection: redis,
-  defaultJobOptions: {
-    attempts: 3,
-    backoff: { type: 'exponential', delay: 5000 },
-    removeOnComplete: { count: 100 },
-    removeOnFail: { count: 500 },
-  },
+export const metricsQueue = makeQueue('metrics-sync', {
+  attempts: 3,
+  backoff: { type: 'exponential', delay: 5000 },
+  removeOnComplete: { count: 100 },
+  removeOnFail: { count: 500 },
 })
 
-export const tokenRefreshQueue = new Queue('token-refresh', {
-  connection: redis,
-  defaultJobOptions: {
-    attempts: 3,
-    backoff: { type: 'exponential', delay: 2000 },
-    removeOnComplete: { count: 50 },
-    removeOnFail: { count: 100 },
-  },
+export const tokenRefreshQueue = makeQueue('token-refresh', {
+  attempts: 3,
+  backoff: { type: 'exponential', delay: 2000 },
+  removeOnComplete: { count: 50 },
+  removeOnFail: { count: 100 },
 })
 
-export const dailyBriefQueue = new Queue('daily-brief', {
-  connection: redis,
-  defaultJobOptions: {
-    attempts: 2,
-    backoff: { type: 'exponential', delay: 10000 },
-    removeOnComplete: { count: 50 },
-    removeOnFail: { count: 100 },
-  },
+export const dailyBriefQueue = makeQueue('daily-brief', {
+  attempts: 2,
+  backoff: { type: 'exponential', delay: 10000 },
+  removeOnComplete: { count: 50 },
+  removeOnFail: { count: 100 },
 })
 
-export const competitorSyncQueue = new Queue('competitor-sync', {
-  connection: redis,
-  defaultJobOptions: {
-    attempts: 3,
-    backoff: { type: 'exponential', delay: 5000 },
-    removeOnComplete: { count: 100 },
-    removeOnFail: { count: 200 },
-  },
+export const competitorSyncQueue = makeQueue('competitor-sync', {
+  attempts: 3,
+  backoff: { type: 'exponential', delay: 5000 },
+  removeOnComplete: { count: 100 },
+  removeOnFail: { count: 200 },
 })
 
 // ── Job type definitions ──────────────────────────────────────
