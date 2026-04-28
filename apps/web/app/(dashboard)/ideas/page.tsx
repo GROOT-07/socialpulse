@@ -45,9 +45,9 @@ function IdeaDialog({ open, onClose, initial }: { open: boolean; onClose: () => 
     mutationFn: () => {
       const payload = {
         title: form.title,
-        description: form.description || null,
-        platform: form.platform || null,
-        captionStarter: form.captionStarter || null,
+        description: form.description || undefined,
+        platform: (form.platform || undefined) as 'INSTAGRAM' | 'FACEBOOK' | 'YOUTUBE' | undefined,
+        captionStarter: form.captionStarter || undefined,
         status: form.status as 'BACKLOG' | 'SCHEDULED' | 'DONE',
       }
       return initial?.id ? ideasApi.update(initial.id, payload) : ideasApi.create(payload)
