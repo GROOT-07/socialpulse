@@ -107,7 +107,7 @@ export async function instagramConnect(req: AuthRequest, res: Response): Promise
   const appId = process.env.META_APP_ID
   if (!appId) { res.status(500).json({ error: 'META_APP_ID not configured' }); return }
 
-  const state = buildOAuthState(orgId, req.user.userId)
+  const state = buildOAuthState(orgId, req.user.sub)
   const redirectUri = `${API_BASE}/api/social/auth/instagram/callback`
 
   const url = new URL('https://www.facebook.com/v22.0/dialog/oauth')
@@ -245,7 +245,7 @@ export async function facebookConnect(req: AuthRequest, res: Response): Promise<
   const appId = process.env.META_APP_ID
   if (!appId) { res.status(500).json({ error: 'META_APP_ID not configured' }); return }
 
-  const state = buildOAuthState(orgId, req.user.userId)
+  const state = buildOAuthState(orgId, req.user.sub)
   const redirectUri = `${API_BASE}/api/social/auth/facebook/callback`
 
   const url = new URL('https://www.facebook.com/v22.0/dialog/oauth')
@@ -369,7 +369,7 @@ export async function youtubeConnect(req: AuthRequest, res: Response): Promise<v
   const clientId = process.env.GOOGLE_CLIENT_ID
   if (!clientId) { res.status(500).json({ error: 'GOOGLE_CLIENT_ID not configured' }); return }
 
-  const state = buildOAuthState(orgId, req.user.userId)
+  const state = buildOAuthState(orgId, req.user.sub)
   const redirectUri = `${API_BASE}/api/social/auth/youtube/callback`
 
   const url = new URL('https://accounts.google.com/o/oauth2/v2/auth')
@@ -451,6 +451,4 @@ export async function youtubeCallback(req: AuthRequest, res: Response): Promise<
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Unknown error'
     console.error('[youtube-callback]', message)
-    res.redirect(`${WEB_BASE}/settings/accounts?error=${encodeURIComponent(message)}`)
-  }
-}
+    res.redirect(`${WEB_BASE}/settings/accounts?

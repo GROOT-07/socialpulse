@@ -122,7 +122,7 @@ async function syncInstagram(socialAccountId: string, accessToken: string): Prom
       impressions: latestInsight?.impressions ?? 0,
       avgLikes: Math.round(avgLikes * 100) / 100,
       avgComments: Math.round(avgComments * 100) / 100,
-      rawJson: { profile, latestInsight, topPostsCount: recentMedia.length } as Prisma.InputJsonValue,
+      rawJson: { profile, latestInsight, topPostsCount: recentMedia.length } as unknown as Prisma.InputJsonValue,
     },
     create: {
       socialAccountId,
@@ -135,7 +135,7 @@ async function syncInstagram(socialAccountId: string, accessToken: string): Prom
       impressions: latestInsight?.impressions ?? 0,
       avgLikes: Math.round(avgLikes * 100) / 100,
       avgComments: Math.round(avgComments * 100) / 100,
-      rawJson: { profile, latestInsight, topPostsCount: recentMedia.length } as Prisma.InputJsonValue,
+      rawJson: { profile, latestInsight, topPostsCount: recentMedia.length } as unknown as Prisma.InputJsonValue,
     },
   })
 }
@@ -187,7 +187,7 @@ async function syncFacebook(socialAccountId: string, accessToken: string): Promi
       impressions: latestInsight?.page_impressions ?? 0,
       avgLikes: Math.round(avgLikes * 100) / 100,
       avgComments: Math.round(avgComments * 100) / 100,
-      rawJson: { latestInsight, postCount: recentPosts.length } as Prisma.InputJsonValue,
+      rawJson: { latestInsight, postCount: recentPosts.length } as unknown as Prisma.InputJsonValue,
     },
     create: {
       socialAccountId,
@@ -200,7 +200,7 @@ async function syncFacebook(socialAccountId: string, accessToken: string): Promi
       impressions: latestInsight?.page_impressions ?? 0,
       avgLikes: Math.round(avgLikes * 100) / 100,
       avgComments: Math.round(avgComments * 100) / 100,
-      rawJson: { latestInsight, postCount: recentPosts.length } as Prisma.InputJsonValue,
+      rawJson: { latestInsight, postCount: recentPosts.length } as unknown as Prisma.InputJsonValue,
     },
   })
 }
@@ -275,7 +275,7 @@ async function syncYouTube(
       impressions: 0,
       avgLikes: Math.round(avgLikes * 100) / 100,
       avgComments: Math.round(avgComments * 100) / 100,
-      rawJson: { channel, recentVideoCount: recentVideos.length } as Prisma.InputJsonValue,
+      rawJson: { channel, recentVideoCount: recentVideos.length } as unknown as Prisma.InputJsonValue,
     },
     create: {
       socialAccountId,
@@ -288,7 +288,7 @@ async function syncYouTube(
       impressions: 0,
       avgLikes: Math.round(avgLikes * 100) / 100,
       avgComments: Math.round(avgComments * 100) / 100,
-      rawJson: { channel, recentVideoCount: recentVideos.length } as Prisma.InputJsonValue,
+      rawJson: { channel, recentVideoCount: recentVideos.length } as unknown as Prisma.InputJsonValue,
     },
   })
 }
@@ -319,11 +319,4 @@ export async function refreshExpiringTokens(socialAccountId?: string): Promise<v
         data: {
           accessToken: encrypt(refreshed.accessToken),
           tokenExpiresAt: new Date(Date.now() + refreshed.expiresIn * 1000),
-        },
-      })
-      console.info(`✅ Refreshed token for SocialAccount ${account.id}`)
-    } catch (err) {
-      console.error(`❌ Failed to refresh token for SocialAccount ${account.id}:`, err)
-    }
-  }
-}
+   
