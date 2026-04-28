@@ -1,4 +1,4 @@
-import Redis from 'ioredis'
+import Redis, { type RedisOptions } from 'ioredis'
 
 declare global {
   // eslint-disable-next-line no-var
@@ -9,7 +9,7 @@ declare global {
 
 const REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6379'
 
-function makeRedis(opts: ConstructorParameters<typeof Redis>[1]): Redis {
+function makeRedis(opts: RedisOptions): Redis {
   const client = new Redis(REDIS_URL, opts)
   // Prevent unhandled 'error' events from crashing the process.
   // Connection failures are expected when Redis is temporarily unavailable.
