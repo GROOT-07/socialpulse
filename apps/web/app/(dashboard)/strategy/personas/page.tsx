@@ -103,7 +103,7 @@ function PersonaDialog({ open, onClose, initial }: { open: boolean; onClose: () 
             </div>
             {!initial && (
               <div className="flex items-end">
-                <Button variant="outline" size="sm" className="h-9 gap-1.5" onClick={() => setGenOpen(true)}>
+                <Button variant="secondary" size="sm" className="h-9 gap-1.5" onClick={() => setGenOpen(true)}>
                   <Sparkles className="h-3.5 w-3.5" />AI
                 </Button>
               </div>
@@ -142,7 +142,7 @@ function PersonaDialog({ open, onClose, initial }: { open: boolean; onClose: () 
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
           <Button onClick={() => saveMutation.mutate()} disabled={!form.name || saveMutation.isPending}>
             {saveMutation.isPending ? 'Saving…' : 'Save'}
           </Button>
@@ -163,7 +163,7 @@ function PersonaDialog({ open, onClose, initial }: { open: boolean; onClose: () 
             />
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setGenOpen(false)}>Cancel</Button>
+            <Button variant="secondary" onClick={() => setGenOpen(false)}>Cancel</Button>
             <Button onClick={() => aiMutation.mutate()} disabled={!genPrompt || aiMutation.isPending}>
               <Sparkles className="mr-1.5 h-3.5 w-3.5" />
               {aiMutation.isPending ? 'Generating…' : 'Generate'}

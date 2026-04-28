@@ -75,7 +75,7 @@ export default function BrandVoicePage() {
       <PageHeader title="Brand Voice" description="Define how your brand communicates across all platforms."
         actions={
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => aiMutation.mutate()} disabled={aiMutation.isPending}>
+            <Button variant="secondary" size="sm" onClick={() => aiMutation.mutate()} disabled={aiMutation.isPending}>
               <Sparkles className="mr-1.5 h-3.5 w-3.5" />{aiMutation.isPending ? 'Generating…' : 'Generate with AI'}
             </Button>
             {dirty && (

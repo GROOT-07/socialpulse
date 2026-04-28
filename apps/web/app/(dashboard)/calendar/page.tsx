@@ -133,7 +133,7 @@ function PostDialog({ open, onClose, initial, defaultDate }: {
           <div className="space-y-1.5"><Label>Notes</Label><Input value={form.notes} onChange={f('notes')} placeholder="Internal notes…" /></div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button variant="ghost" onClick={onClose}>Cancel</Button>
           <Button onClick={() => mutation.mutate()} disabled={!form.topic || !form.date || mutation.isPending}>
             {mutation.isPending ? 'Saving…' : 'Save'}
           </Button>

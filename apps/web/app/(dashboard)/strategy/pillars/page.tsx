@@ -58,7 +58,7 @@ function PillarDialog({ open, onClose, initial, existingColors }: {
           <div className="space-y-1.5"><Label>Examples</Label><Textarea value={form.examples} onChange={f('examples')} className="resize-none h-16 text-sm" placeholder="How-to guides, industry stats, tips…" /></div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
           <Button onClick={() => mutation.mutate()} disabled={!form.title || mutation.isPending}>{mutation.isPending ? 'Saving…' : 'Save'}</Button>
         </DialogFooter>
       </DialogContent>

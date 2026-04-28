@@ -112,7 +112,7 @@ function GoalDialog({ open, onClose, initial }: { open: boolean; onClose: () => 
           <div className="space-y-1.5"><Label>Due Date</Label><Input type="date" value={form.dueDate} onChange={f('dueDate')} /></div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
           <Button onClick={() => mutation.mutate()} disabled={!form.title || mutation.isPending}>{mutation.isPending ? 'Saving…' : 'Save'}</Button>
         </DialogFooter>
       </DialogContent>

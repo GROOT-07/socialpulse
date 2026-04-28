@@ -182,7 +182,7 @@ export default function SettingsPage() {
             <p className="text-sm text-[var(--color-text-3)] mb-3">
               Manage your Instagram, Facebook, and YouTube connections.
             </p>
-            <Button variant="outline" size="sm" asChild>
+            <Button variant="secondary" size="sm" asChild>
               <a href="/settings/accounts">Manage Connections</a>
             </Button>
           </CardContent>

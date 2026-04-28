@@ -94,7 +94,7 @@ function IdeaDialog({ open, onClose, initial }: { open: boolean; onClose: () => 
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
           <Button onClick={() => mutation.mutate()} disabled={!form.title || mutation.isPending}>{mutation.isPending ? 'Saving…' : 'Save'}</Button>
         </DialogFooter>
       </DialogContent>
@@ -163,7 +163,7 @@ export default function IdeasPage() {
       <PageHeader title="Ideas Bank" description="Capture, organize, and generate content ideas."
         actions={
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => generateMutation.mutate()} disabled={generateMutation.isPending}>
+            <Button variant="secondary" size="sm" onClick={() => generateMutation.mutate()} disabled={generateMutation.isPending}>
               <Sparkles className="mr-1.5 h-3.5 w-3.5" />{generateMutation.isPending ? 'Generating…' : 'Generate Ideas'}
             </Button>
             <Button size="sm" onClick={() => setAddOpen(true)}><Plus className="mr-1.5 h-3.5 w-3.5" />New Idea</Button>

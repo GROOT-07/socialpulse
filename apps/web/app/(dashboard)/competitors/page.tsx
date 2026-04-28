@@ -84,7 +84,7 @@ function CompetitorCard({ competitor, onRemove, onSync }: {
         )}
         <div className="mt-3 flex gap-2">
           <Link href={`/competitors/content?id=${competitor.id}`} className="flex-1">
-            <Button variant="outline" size="sm" className="w-full text-xs h-7">View Posts</Button>
+            <Button variant="secondary" size="sm" className="w-full text-xs h-7">View Posts</Button>
           </Link>
         </div>
       </CardContent>
@@ -132,7 +132,7 @@ function AddCompetitorDialog({ open, onClose }: { open: boolean; onClose: () => 
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
           <Button onClick={() => mutation.mutate()} disabled={!form.name || !form.handle || mutation.isPending}>
             {mutation.isPending ? 'Adding…' : 'Add Competitor'}
           </Button>
@@ -170,7 +170,7 @@ export default function CompetitorsPage() {
         actions={
           <div className="flex items-center gap-2">
             <Link href="/competitors/gap-analysis">
-              <Button variant="outline" size="sm">Gap Analysis</Button>
+              <Button variant="secondary" size="sm">Gap Analysis</Button>
             </Link>
             <Button size="sm" onClick={() => setAddOpen(true)}>
               <Plus className="mr-1.5 h-3.5 w-3.5" /> Add Competitor

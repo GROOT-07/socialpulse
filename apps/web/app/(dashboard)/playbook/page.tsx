@@ -57,7 +57,7 @@ function PlaybookSectionCard({ section }: { section: PlaybookSection }) {
                 <Sparkles className="h-2.5 w-2.5" />AI
               </Badge>
             )}
-            <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => aiMutation.mutate()} disabled={aiMutation.isPending}>
+            <Button variant="secondary" size="sm" className="h-7 text-xs" onClick={() => aiMutation.mutate()} disabled={aiMutation.isPending}>
               <Sparkles className="mr-1 h-3 w-3" />{aiMutation.isPending ? 'Generating…' : 'Generate'}
             </Button>
           </div>
@@ -68,7 +68,7 @@ function PlaybookSectionCard({ section }: { section: PlaybookSection }) {
           <div className="space-y-2">
             <Textarea value={content} onChange={e => setContent(e.target.value)} className="min-h-[120px] text-sm resize-y" />
             <div className="flex justify-end gap-2">
-              <Button variant="outline" size="sm" onClick={() => { setEditing(false); setContent(section.content ?? '') }}>Cancel</Button>
+              <Button variant="secondary" size="sm" onClick={() => { setEditing(false); setContent(section.content ?? '') }}>Cancel</Button>
               <Button size="sm" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
                 <Save className="mr-1.5 h-3.5 w-3.5" />{saveMutation.isPending ? 'Saving…' : 'Save'}
               </Button>

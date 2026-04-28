@@ -54,7 +54,7 @@ function AddItemDialog({ open, onClose }: { open: boolean; onClose: () => void }
           <div className="space-y-1.5"><Label>Description (optional)</Label><Input value={form.description} onChange={(e: React.ChangeEvent<HTMLInputElement>) => setForm((p) => ({ ...p, description: e.target.value }))} /></div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button variant="secondary" onClick={onClose}>Cancel</Button>
           <Button onClick={() => mutation.mutate()} disabled={!form.title || mutation.isPending}>{mutation.isPending ? 'Adding…' : 'Add'}</Button>
         </DialogFooter>
       </DialogContent>
