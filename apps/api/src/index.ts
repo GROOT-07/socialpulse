@@ -106,4 +106,19 @@ app.listen(PORT, async () => {
   console.info(`🚀 SocialPulse API running on http://localhost:${PORT}`)
 
   // Start BullMQ workers — wrapped so a Redis outage doesn't crash the process
-  await startWorkersS
+  await startWorkersSafely([
+    { name: 'Metrics worker',        start: createMetricsWorker },
+    { name: 'Token refresh worker',  start: createTokenRefreshWorker },
+    { name: 'Competitor worker',     start: createCompetitorWorker },
+    { name: 'Daily brief worker',    start: createBriefWorker },
+  ])
+
+  try {
+    await scheduleRecurringJobs()
+    console.info('✅ Recurring jobs scheduled')
+  } catch (err) {
+    console.error('❌ Could not schedule recurring jobs:', (err as Error).message)
+  }
+})
+
+export default app
