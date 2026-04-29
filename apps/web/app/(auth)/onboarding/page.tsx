@@ -586,7 +586,7 @@ function Step3({ orgId, onNext }: { orgId: string; onNext: () => void }) {
                   <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-4)] mb-2">Detected keywords</p>
                   <div className="flex flex-wrap gap-1.5">
                     {intelligence!.detectedKeywords.slice(0, 8).map((kw) => (
-                      <Badge key={kw} variant="secondary" className="text-[10px]">{kw}</Badge>
+                      <Badge key={kw} variant="outline" className="text-[10px]">{kw}</Badge>
                     ))}
                   </div>
                 </div>
