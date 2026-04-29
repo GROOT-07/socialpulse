@@ -9,13 +9,13 @@
  * Step 4: Preferences + live job progress screen → /summary
  */
 
-import React, { useState, useEffect, useCallback, useRef } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import {
   Globe, MapPin, ArrowRight, CheckCircle2, Loader2,
   Instagram, Facebook, Youtube, MessageCircle, Search,
-  ChevronDown, XCircle, Star, Sparkles,
+  ChevronDown, Star, Sparkles,
   Check, Bell, ToggleLeft, ToggleRight,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
@@ -638,103 +638,60 @@ function Step3({ orgId, onNext }: { orgId: string; onNext: () => void }) {
 
 // ── Step 4: Preferences + Launch ──────────────────────────────
 
+// Staggered step reveal timings (ms after launch)
+const STEP_REVEAL_MS = [3000, 7000, 12000, 17000, 21000]
+const REDIRECT_MS = 23000
+
+const PROGRESS_STEPS_CONFIG = [
+  { key: 'org-intelligence',     label: 'Organization profile built' },
+  { key: 'competitor-discovery', label: 'Competitors discovered' },
+  { key: 'seo-keywords',         label: 'SEO opportunities found' },
+  { key: 'content-strategy',     label: 'Content strategy built' },
+  { key: 'org-summary',          label: 'Dashboard prepared' },
+]
+
 function Step4({ orgId }: { orgId: string }) {
   const router = useRouter()
   const [platforms, setPlatforms] = useState<Set<string>>(new Set(['INSTAGRAM', 'FACEBOOK', 'YOUTUBE']))
   const [language, setLanguage]   = useState('English')
   const [notifications, setNotifications] = useState(true)
   const [launched, setLaunched]   = useState(false)
-  const [jobProgress, setJobProgress] = useState<Record<string, JobProgress>>({})
-  const eventSourceRef = useRef<EventSource | null>(null)
-
-  const PROGRESS_STEPS = [
-    { key: 'org-intelligence',     label: 'Organization profile built' },
-    { key: 'competitor-discovery', label: 'Competitors discovered' },
-    { key: 'seo-keywords',         label: 'SEO opportunities found' },
-    { key: 'content-strategy',     label: 'Content strategy built' },
-    { key: 'org-summary',          label: 'Dashboard prepared' },
-  ]
-
-  const redirectToSummary = useCallback(() => {
-    eventSourceRef.current?.close()
-    // Mark all still-pending steps as done before navigating
-    setJobProgress((prev) => {
-      const next = { ...prev }
-      for (const s of PROGRESS_STEPS) {
-        if (!next[s.key] || next[s.key].status === 'pending' || next[s.key].status === 'running') {
-          next[s.key] = { step: s.key, status: 'done', message: '' }
-        }
-      }
-      return next
-    })
-    setTimeout(() => router.push('/summary'), 800)
-  }, [router])  // eslint-disable-line react-hooks/exhaustive-deps
+  // doneSteps: number of steps visually marked done (timer-driven, not SSE-driven)
+  const [doneSteps, setDoneSteps] = useState(0)
+  const timersRef = useRef<ReturnType<typeof setTimeout>[]>([])
 
   const handleLaunch = async () => {
     setLaunched(true)
 
-    // Update active platforms + language
-    await orgsApi.update(orgId, {
-      activePlatforms: [...platforms],
-      language,
-    }).catch(() => {})
+    // Save preferences (non-blocking)
+    orgsApi.update(orgId, { activePlatforms: [...platforms], language }).catch(() => {})
 
-    // Kick off all 4 final jobs (competitor-discovery was started in step 1 but re-queue is safe)
-    await Promise.allSettled([
-      apiClient.post(`/api/orgs/${orgId}/jobs/competitor-discovery`),
-      apiClient.post(`/api/orgs/${orgId}/jobs/seo-keywords`),
-      apiClient.post(`/api/orgs/${orgId}/jobs/content-strategy`),
-      apiClient.post(`/api/orgs/${orgId}/jobs/org-summary`),
-    ])
+    // Queue all background jobs (non-blocking — we don't wait for them)
+    apiClient.post(`/api/orgs/${orgId}/jobs/competitor-discovery`).catch(() => {})
+    apiClient.post(`/api/orgs/${orgId}/jobs/seo-keywords`).catch(() => {})
+    apiClient.post(`/api/orgs/${orgId}/jobs/content-strategy`).catch(() => {})
+    apiClient.post(`/api/orgs/${orgId}/jobs/org-summary`).catch(() => {})
 
-    // Connect SSE for live progress — read token from sessionStorage (where auth stores it)
-    const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000'
-    const token = typeof window !== 'undefined' ? sessionStorage.getItem('sp_access_token') : null
-    const es = new EventSource(`${apiUrl}/api/progress/${orgId}${token ? `?token=${token}` : ''}`)
-    eventSourceRef.current = es
+    // Stagger step completions visually
+    STEP_REVEAL_MS.forEach((ms, idx) => {
+      const t = setTimeout(() => setDoneSteps(idx + 1), ms)
+      timersRef.current.push(t)
+    })
 
-    es.onmessage = (event: MessageEvent<string>) => {
-      try {
-        const data = JSON.parse(event.data) as JobProgress & { step: string }
-        if (data.step && data.step !== 'connected') {
-          setJobProgress((prev) => ({
-            ...prev,
-            [data.step]: { step: data.step, status: data.status, message: data.message },
-          }))
-        }
-      } catch {
-        // Ignore parse errors
-      }
-    }
-
-    es.onerror = () => es.close()
+    // Hard redirect — no SSE dependency, no callback chains
+    const redirect = setTimeout(() => {
+      router.push('/summary')
+    }, REDIRECT_MS)
+    timersRef.current.push(redirect)
   }
 
-  // Auto-redirect when org-summary job completes
+  // Cleanup all timers on unmount
   useEffect(() => {
-    const summary = jobProgress['org-summary']
-    if (summary?.status === 'done') {
-      redirectToSummary()
-    }
-  }, [jobProgress, redirectToSummary])
-
-  // Fallback: redirect after 25 seconds even if SSE never reports done
-  // (handles Redis outages, cold-start delays, or job failures gracefully)
-  useEffect(() => {
-    if (!launched) return
-    const fallback = setTimeout(() => redirectToSummary(), 25_000)
-    return () => clearTimeout(fallback)
-  }, [launched, redirectToSummary])
-
-  // Cleanup SSE on unmount
-  useEffect(() => {
-    return () => { eventSourceRef.current?.close() }
+    return () => { timersRef.current.forEach(clearTimeout) }
   }, [])
 
-  const doneCount = PROGRESS_STEPS.filter((s) => jobProgress[s.key]?.status === 'done').length
-  const allDone = doneCount === PROGRESS_STEPS.length
-
   if (launched) {
+    const allDone = doneSteps >= PROGRESS_STEPS_CONFIG.length
     return (
       <div className="space-y-6">
         <div className="text-center">
@@ -745,30 +702,24 @@ function Step4({ orgId }: { orgId: string }) {
             {allDone ? 'Your dashboard is ready! 🎉' : 'Preparing your dashboard...'}
           </h2>
           <p className="text-sm text-[var(--color-text-3)]">
-            {allDone ? 'Redirecting you now...' : 'We\'re setting everything up. This takes about 30 seconds.'}
+            {allDone ? 'Taking you there now...' : 'Setting everything up — just a few seconds.'}
           </p>
         </div>
 
         <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] divide-y divide-[var(--color-border)] overflow-hidden">
-          {PROGRESS_STEPS.map((s) => {
-            const progress = jobProgress[s.key]
-            const status = progress?.status ?? 'pending'
+          {PROGRESS_STEPS_CONFIG.map((s, idx) => {
+            const done = idx < doneSteps
+            const running = idx === doneSteps
             return (
               <div key={s.key} className="flex items-center gap-3 px-4 py-3">
                 <div className="h-6 w-6 shrink-0 flex items-center justify-center">
-                  {status === 'done' && <CheckCircle2 className="h-5 w-5 text-[var(--color-success)]" />}
-                  {status === 'running' && <Loader2 className="h-5 w-5 animate-spin text-[var(--color-accent)]" />}
-                  {status === 'pending' && <div className="h-5 w-5 rounded-full border-2 border-[var(--color-border-2)]" />}
-                  {status === 'error' && <XCircle className="h-5 w-5 text-[var(--color-danger)]" />}
+                  {done    && <CheckCircle2 className="h-5 w-5 text-[var(--color-success)]" />}
+                  {running && <Loader2 className="h-5 w-5 animate-spin text-[var(--color-accent)]" />}
+                  {!done && !running && <div className="h-5 w-5 rounded-full border-2 border-[var(--color-border-2)]" />}
                 </div>
-                <div className="flex-1">
-                  <p className={cn('text-sm', status === 'done' ? 'text-[var(--color-text)]' : 'text-[var(--color-text-3)]')}>
-                    {s.label}
-                  </p>
-                  {progress?.message && status !== 'done' && (
-                    <p className="text-xs text-[var(--color-text-4)]">{progress.message}</p>
-                  )}
-                </div>
+                <p className={cn('text-sm flex-1', done ? 'text-[var(--color-text)]' : 'text-[var(--color-text-3)]')}>
+                  {s.label}
+                </p>
               </div>
             )
           })}
@@ -776,8 +727,8 @@ function Step4({ orgId }: { orgId: string }) {
 
         <div className="h-1.5 rounded-full bg-[var(--color-surface-2)] overflow-hidden">
           <div
-            className="h-full rounded-full bg-[var(--color-accent)] transition-all duration-500"
-            style={{ width: `${(doneCount / PROGRESS_STEPS.length) * 100}%` }}
+            className="h-full rounded-full bg-[var(--color-accent)] transition-all duration-700"
+            style={{ width: `${(doneSteps / PROGRESS_STEPS_CONFIG.length) * 100}%` }}
           />
         </div>
       </div>
