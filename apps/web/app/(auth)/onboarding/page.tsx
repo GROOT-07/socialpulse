@@ -493,19 +493,27 @@ function Step2({ orgId, onNext }: { orgId: string; onNext: () => void }) {
 function Step3({ orgId, onNext }: { orgId: string; onNext: () => void }) {
   const [confirmedCompetitors, setConfirmedCompetitors] = useState<Set<string>>(new Set())
   const [dismissedCompetitors, setDismissedCompetitors] = useState<Set<string>>(new Set())
+  const [timedOut, setTimedOut] = useState(false)
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // 60-second timeout — if jobs haven't completed, allow skipping
+  useEffect(() => {
+    timeoutRef.current = setTimeout(() => setTimedOut(true), 60_000)
+    return () => { if (timeoutRef.current) clearTimeout(timeoutRef.current) }
+  }, [])
 
   // Poll for intelligence data (job may still be running)
   const { data: intelligence, isLoading: intelLoading } = useQuery({
     queryKey: ['org-intelligence', orgId],
     queryFn: () => apiClient.get<OrgIntelligenceData>(`/api/orgs/${orgId}/intelligence`),
-    refetchInterval: 3000,
+    refetchInterval: timedOut ? false : 3000,
     refetchIntervalInBackground: false,
   })
 
   const { data: competitors, isLoading: compLoading } = useQuery({
     queryKey: ['competitors', orgId],
     queryFn: () => apiClient.get<DiscoveredCompetitor[]>(`/api/orgs/${orgId}/competitors`),
-    refetchInterval: 3000,
+    refetchInterval: timedOut ? false : 3000,
     refetchIntervalInBackground: false,
   })
 
@@ -528,7 +536,7 @@ function Step3({ orgId, onNext }: { orgId: string; onNext: () => void }) {
   const hasIntelligence = !!intelligence
   const hasCompetitors = (competitors?.length ?? 0) > 0
 
-  const canProceed = confirmedCount >= 3 || (hasCompetitors && confirmedCount >= (competitors?.length ?? 0))
+  const canProceed = timedOut || confirmedCount >= 3 || (hasCompetitors && confirmedCount >= (competitors?.length ?? 0))
 
   return (
     <div className="space-y-6">
@@ -683,10 +691,14 @@ function Step3({ orgId, onNext }: { orgId: string; onNext: () => void }) {
 
       <div className="flex items-center justify-between pt-2">
         <p className="text-xs text-[var(--color-text-4)]">
-          {canProceed ? '✓ Ready to continue' : `Confirm at least 3 competitors to continue`}
+          {timedOut
+            ? 'Discovery is taking longer than expected — you can skip and add competitors later.'
+            : canProceed
+              ? '✓ Ready to continue'
+              : `Confirm at least 3 competitors to continue`}
         </p>
         <Button onClick={onNext} disabled={!canProceed} className="gap-2">
-          Continue <ArrowRight className="h-4 w-4" />
+          {timedOut && confirmedCount < 3 ? 'Skip for now' : 'Continue'} <ArrowRight className="h-4 w-4" />
         </Button>
       </div>
     </div>
