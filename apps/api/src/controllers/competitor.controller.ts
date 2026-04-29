@@ -1,7 +1,7 @@
 import type { Response } from 'express'
 import type { AuthRequest } from '../middleware/auth'
 import { prisma } from '../lib/prisma'
-import { competitorSyncQueue } from '../lib/queue'
+import { competitorSyncQueue, competitorDiscoveryQueue } from '../lib/queue'
 import {
   getInstagramCompetitorPosts,
   getFacebookCompetitorPosts,
@@ -169,6 +169,84 @@ export async function getCompetitorPosts(req: AuthRequest, res: Response): Promi
   else posts = await getYouTubeCompetitorPosts(competitor.handle, 20)
 
   res.json({ data: { posts } })
+}
+
+// ── Rediscover: trigger CompetitorDiscoveryJob for the org ───
+
+export async function rediscoverCompetitors(req: AuthRequest, res: Response): Promise<void> {
+  const id = orgId(req)
+  if (!id) { res.status(400).json({ error: 'x-org-id required' }); return }
+
+  const org = await prisma.organization.findUnique({
+    where: { id },
+    select: { id: true, name: true, industry: true, city: true, country: true, website: true },
+  })
+  if (!org) { res.status(404).json({ error: 'Organization not found' }); return }
+
+  await competitorDiscoveryQueue.add(
+    'manual-rediscover',
+    { orgId: id, orgName: org.name, industry: org.industry, city: org.city ?? '', website: org.website ?? undefined },
+    { priority: 2 },
+  )
+
+  res.json({ data: { message: 'Competitor discovery queued. Results will appear shortly.' } })
+}
+
+// ── Update competitor status (confirm / dismiss) ──────────────
+
+export async function updateCompetitorStatus(req: AuthRequest, res: Response): Promise<void> {
+  const id = orgId(req)
+  const { id: cId } = req.params
+  const { status } = req.body as { status: 'CONFIRMED' | 'DISMISSED' | 'PENDING' }
+
+  if (!status || !['CONFIRMED', 'DISMISSED', 'PENDING'].includes(status)) {
+    res.status(400).json({ error: 'status must be CONFIRMED | DISMISSED | PENDING' })
+    return
+  }
+
+  const existing = await prisma.competitor.findFirst({ where: { id: cId, orgId: id ?? '' } })
+  if (!existing) { res.status(404).json({ error: 'Not found' }); return }
+
+  const c = await prisma.competitor.update({
+    where: { id: cId },
+    data: { status },
+    include: { metrics: { orderBy: { snapshotDate: 'desc' }, take: 2 } },
+  })
+  res.json({ data: { competitor: mapCompetitor(c) } })
+}
+
+// ── Get last discovery timestamp for org ─────────────────────
+
+export async function getDiscoveryMeta(req: AuthRequest, res: Response): Promise<void> {
+  const id = orgId(req)
+  if (!id) { res.status(400).json({ error: 'x-org-id required' }); return }
+
+  // Most recent competitor added = proxy for last discovery run
+  const latest = await prisma.competitor.findFirst({
+    where: { orgId: id },
+    orderBy: { addedAt: 'desc' },
+    select: { addedAt: true },
+  })
+
+  const counts = await prisma.competitor.groupBy({
+    by: ['status'],
+    where: { orgId: id },
+    _count: true,
+  })
+
+  const statusMap = Object.fromEntries(counts.map((r) => [r.status, r._count]))
+
+  res.json({
+    data: {
+      lastDiscoveryAt: latest?.addedAt ?? null,
+      counts: {
+        total: counts.reduce((s, r) => s + r._count, 0),
+        confirmed: statusMap['CONFIRMED'] ?? 0,
+        pending: statusMap['PENDING'] ?? 0,
+        dismissed: statusMap['DISMISSED'] ?? 0,
+      },
+    },
+  })
 }
 
 export async function getCompetitorMetrics(req: AuthRequest, res: Response): Promise<void> {

@@ -1,0 +1,207 @@
+{
+  "_comment": "RSS feeds organized by industry category. Used by the Trending Now page to surface relevant news.",
+  "_lastUpdated": "2025-01-01",
+
+  "Healthcare / Medical Clinic": [
+    { "name": "Medscape Medical News", "url": "https://www.medscape.com/rss/medscapenews.xml", "lang": "en" },
+    { "name": "WHO News", "url": "https://www.who.int/rss-feeds/news-english.xml", "lang": "en" },
+    { "name": "WebMD Health News", "url": "https://rss.webmd.com/rss/rss.aspx?RSSSource=RSS_PUBLIC", "lang": "en" },
+    { "name": "NIH News in Health", "url": "https://newsinhealth.nih.gov/sites/default/files/nihnewsinhealth.xml", "lang": "en" },
+    { "name": "Health Affairs", "url": "https://www.healthaffairs.org/rss/current.xml", "lang": "en" }
+  ],
+
+  "Dental Clinic": [
+    { "name": "Dental Products Report", "url": "https://www.dentalproductsreport.com/rss/all", "lang": "en" },
+    { "name": "Dentistry Today", "url": "https://www.dentistrytoday.com/feed/", "lang": "en" },
+    { "name": "ADA News", "url": "https://www.ada.org/en/publications/ada-news/rss-feeds", "lang": "en" }
+  ],
+
+  "Pharmacy": [
+    { "name": "Pharmacy Times", "url": "https://www.pharmacytimes.com/rss/news", "lang": "en" },
+    { "name": "Drug Topics", "url": "https://www.drugtopics.com/rss/all", "lang": "en" },
+    { "name": "The Pharmaceutical Journal", "url": "https://pharmaceutical-journal.com/feed", "lang": "en" }
+  ],
+
+  "Fitness & Gym": [
+    { "name": "Men's Health Fitness", "url": "https://www.menshealth.com/fitness/rss/", "lang": "en" },
+    { "name": "Women's Health Fitness", "url": "https://www.womenshealthmag.com/fitness/rss/", "lang": "en" },
+    { "name": "ACE Fitness", "url": "https://www.acefitness.org/resources/everyone/blog/rss/", "lang": "en" },
+    { "name": "Bodybuilding.com News", "url": "https://www.bodybuilding.com/rss/articles.xml", "lang": "en" }
+  ],
+
+  "Restaurant / Café": [
+    { "name": "Restaurant Business Online", "url": "https://www.restaurantbusinessonline.com/rss.xml", "lang": "en" },
+    { "name": "Nation's Restaurant News", "url": "https://www.nrn.com/rss.xml", "lang": "en" },
+    { "name": "Food & Wine", "url": "https://www.foodandwine.com/rss", "lang": "en" },
+    { "name": "Eater", "url": "https://www.eater.com/rss/index.xml", "lang": "en" }
+  ],
+
+  "Bakery": [
+    { "name": "Baking Business", "url": "https://www.bakingbusiness.com/rss/news", "lang": "en" },
+    { "name": "Modern Baking", "url": "https://www.modernbaking.com/rss", "lang": "en" },
+    { "name": "Food & Wine Baking", "url": "https://www.foodandwine.com/recipes/rss", "lang": "en" }
+  ],
+
+  "Hotel & Hospitality": [
+    { "name": "Hotels Magazine", "url": "https://www.hotelsmag.com/feed/", "lang": "en" },
+    { "name": "HospitalityNet", "url": "https://www.hospitalitynet.org/rss/rss.xml", "lang": "en" },
+    { "name": "Hotel News Now", "url": "https://hotelnewsnow.com/rss/all", "lang": "en" },
+    { "name": "Skift", "url": "https://skift.com/feed/", "lang": "en" }
+  ],
+
+  "Real Estate": [
+    { "name": "Inman News", "url": "https://www.inman.com/feed/", "lang": "en" },
+    { "name": "Housing Wire", "url": "https://www.housingwire.com/feed/", "lang": "en" },
+    { "name": "NAR Economist Outlook", "url": "https://www.nar.realtor/blogs.nsf/Economist-Outlook?OpenView&Start=1&Count=20&Expand=1&rss", "lang": "en" },
+    { "name": "India Real Estate (Housing.com)", "url": "https://housing.com/news/feed/", "lang": "en" }
+  ],
+
+  "Education / Coaching": [
+    { "name": "Education Week", "url": "https://www.edweek.org/ew/rss/rss.xml", "lang": "en" },
+    { "name": "Times Higher Education", "url": "https://www.timeshighereducation.com/rss.xml", "lang": "en" },
+    { "name": "EdSurge", "url": "https://www.edsurge.com/news.rss", "lang": "en" },
+    { "name": "Inside Higher Ed", "url": "https://www.insidehighered.com/rss.xml", "lang": "en" }
+  ],
+
+  "Beauty Salon / Spa": [
+    { "name": "American Salon", "url": "https://www.americansalon.com/rss.xml", "lang": "en" },
+    { "name": "Beauty Launchpad", "url": "https://www.beautylaunchpad.com/rss.xml", "lang": "en" },
+    { "name": "Allure", "url": "https://www.allure.com/feed/rss", "lang": "en" },
+    { "name": "Refinery29 Beauty", "url": "https://www.refinery29.com/rss.xml", "lang": "en" }
+  ],
+
+  "Clothing & Fashion": [
+    { "name": "Vogue", "url": "https://www.vogue.com/rss/feeds/latest-news.xml", "lang": "en" },
+    { "name": "Business of Fashion", "url": "https://www.businessoffashion.com/rss", "lang": "en" },
+    { "name": "WWD", "url": "https://wwd.com/feed/", "lang": "en" },
+    { "name": "Fashionista", "url": "https://fashionista.com/rss", "lang": "en" }
+  ],
+
+  "Electronics & Technology": [
+    { "name": "TechCrunch", "url": "https://techcrunch.com/feed/", "lang": "en" },
+    { "name": "The Verge", "url": "https://www.theverge.com/rss/index.xml", "lang": "en" },
+    { "name": "Wired", "url": "https://www.wired.com/feed/rss", "lang": "en" },
+    { "name": "Engadget", "url": "https://www.engadget.com/rss.xml", "lang": "en" },
+    { "name": "Android Authority", "url": "https://www.androidauthority.com/feed/", "lang": "en" }
+  ],
+
+  "Automobile": [
+    { "name": "Car and Driver", "url": "https://www.caranddriver.com/rss/all.xml/", "lang": "en" },
+    { "name": "Motor Trend", "url": "https://www.motortrend.com/rss/all/", "lang": "en" },
+    { "name": "AutoCar India", "url": "https://www.autocarindia.com/rss.xml", "lang": "en" },
+    { "name": "CarWale News", "url": "https://www.carwale.com/rss/?type=news", "lang": "en" }
+  ],
+
+  "Legal Services": [
+    { "name": "Law360", "url": "https://www.law360.com/rss", "lang": "en" },
+    { "name": "Above the Law", "url": "https://abovethelaw.com/feed/", "lang": "en" },
+    { "name": "The Hindu Law", "url": "https://www.thehindu.com/tag/judiciary/feed/", "lang": "en" }
+  ],
+
+  "Financial Services": [
+    { "name": "Bloomberg Finance", "url": "https://feeds.bloomberg.com/markets/news.rss", "lang": "en" },
+    { "name": "Moneycontrol", "url": "https://www.moneycontrol.com/rss/latestnews.xml", "lang": "en" },
+    { "name": "Economic Times Markets", "url": "https://economictimes.indiatimes.com/markets/rssfeeds/1977021501.cms", "lang": "en" },
+    { "name": "Business Standard Finance", "url": "https://www.business-standard.com/rss/finance-2.rss", "lang": "en" }
+  ],
+
+  "Event Management": [
+    { "name": "Special Events Magazine", "url": "https://www.specialevents.com/rss.xml", "lang": "en" },
+    { "name": "BizBash", "url": "https://www.bizbash.com/feed", "lang": "en" },
+    { "name": "Event Manager Blog", "url": "https://www.eventmanagerblog.com/feed", "lang": "en" }
+  ],
+
+  "Interior Design": [
+    { "name": "Architectural Digest", "url": "https://www.architecturaldigest.com/feed/rss", "lang": "en" },
+    { "name": "Dezeen", "url": "https://www.dezeen.com/feed/", "lang": "en" },
+    { "name": "Interior Design", "url": "https://interiordesign.net/feed/", "lang": "en" },
+    { "name": "Houzz India", "url": "https://www.houzz.in/magazine/rss", "lang": "en" }
+  ],
+
+  "Photography / Videography": [
+    { "name": "PetaPixel", "url": "https://petapixel.com/feed/", "lang": "en" },
+    { "name": "Photography Life", "url": "https://photographylife.com/feed", "lang": "en" },
+    { "name": "Fstoppers", "url": "https://fstoppers.com/rss.xml", "lang": "en" },
+    { "name": "Digital Photography School", "url": "https://digital-photography-school.com/feed/", "lang": "en" }
+  ],
+
+  "Travel & Tourism": [
+    { "name": "Travel + Leisure", "url": "https://www.travelandleisure.com/rss", "lang": "en" },
+    { "name": "Condé Nast Traveler", "url": "https://www.cntraveler.com/feed/rss", "lang": "en" },
+    { "name": "Lonely Planet News", "url": "https://www.lonelyplanet.com/news/feed/rss/", "lang": "en" },
+    { "name": "Times of India Travel", "url": "https://timesofindia.indiatimes.com/rssfeedstopstories.cms", "lang": "en" }
+  ],
+
+  "Supermarket / Grocery": [
+    { "name": "Grocery Dive", "url": "https://www.grocerydive.com/feeds/news/", "lang": "en" },
+    { "name": "Supermarket News", "url": "https://www.supermarketnews.com/rss.xml", "lang": "en" },
+    { "name": "Progressive Grocer", "url": "https://progressivegrocer.com/feed", "lang": "en" }
+  ],
+
+  "Jewellery": [
+    { "name": "JCK Magazine", "url": "https://www.jckonline.com/feed/", "lang": "en" },
+    { "name": "National Jeweler", "url": "https://www.nationaljeweler.com/rss.xml", "lang": "en" },
+    { "name": "Vogue Accessories", "url": "https://www.vogue.com/fashion/accessories/rss", "lang": "en" }
+  ],
+
+  "Optical Store": [
+    { "name": "Optometry Times", "url": "https://www.optometrytimes.com/rss/all", "lang": "en" },
+    { "name": "Review of Optometry", "url": "https://www.reviewofoptometry.com/rss.xml", "lang": "en" },
+    { "name": "20/20 Magazine", "url": "https://www.2020mag.com/rss", "lang": "en" }
+  ],
+
+  "Diagnostic Lab": [
+    { "name": "Lab Manager", "url": "https://www.labmanager.com/rss.xml", "lang": "en" },
+    { "name": "Clinical Lab Products", "url": "https://clponline.com/rss", "lang": "en" },
+    { "name": "Pathology & Oncology Research", "url": "https://springer.com/journal/12253/rss.xml", "lang": "en" }
+  ],
+
+  "Yoga & Wellness": [
+    { "name": "Yoga Journal", "url": "https://www.yogajournal.com/feed/", "lang": "en" },
+    { "name": "MindBodyGreen", "url": "https://www.mindbodygreen.com/rss.xml", "lang": "en" },
+    { "name": "Wellness Mama", "url": "https://wellnessmama.com/feed/", "lang": "en" },
+    { "name": "Chopra Center", "url": "https://chopra.com/feed", "lang": "en" }
+  ],
+
+  "Catering": [
+    { "name": "Restaurant Business Online", "url": "https://www.restaurantbusinessonline.com/rss.xml", "lang": "en" },
+    { "name": "Food Service News", "url": "https://foodservicenews.net/feed/", "lang": "en" },
+    { "name": "Catering Magazine", "url": "https://www.cateringmagazine.co.uk/feed/", "lang": "en" }
+  ],
+
+  "Architecture": [
+    { "name": "ArchDaily", "url": "https://www.archdaily.com/feed", "lang": "en" },
+    { "name": "Dezeen Architecture", "url": "https://www.dezeen.com/architecture/feed/", "lang": "en" },
+    { "name": "Architectural Record", "url": "https://www.architecturalrecord.com/rss.xml", "lang": "en" }
+  ],
+
+  "IT Services": [
+    { "name": "TechCrunch", "url": "https://techcrunch.com/feed/", "lang": "en" },
+    { "name": "ZDNet", "url": "https://www.zdnet.com/news/rss.xml", "lang": "en" },
+    { "name": "InfoQ", "url": "https://feed.infoq.com/", "lang": "en" },
+    { "name": "Dev.to", "url": "https://dev.to/feed", "lang": "en" }
+  ],
+
+  "Marketing Agency": [
+    { "name": "Marketing Week", "url": "https://www.marketingweek.com/feed/", "lang": "en" },
+    { "name": "Adweek", "url": "https://www.adweek.com/feed/", "lang": "en" },
+    { "name": "Social Media Examiner", "url": "https://www.socialmediaexaminer.com/feed/", "lang": "en" },
+    { "name": "Content Marketing Institute", "url": "https://contentmarketinginstitute.com/feed/", "lang": "en" },
+    { "name": "HubSpot Marketing Blog", "url": "https://blog.hubspot.com/marketing/rss.xml", "lang": "en" }
+  ],
+
+  "Non-Profit / NGO": [
+    { "name": "The Guardian Global Development", "url": "https://www.theguardian.com/global-development/rss", "lang": "en" },
+    { "name": "NDTV Good Times", "url": "https://www.ndtv.com/rss/goodtimes", "lang": "en" },
+    { "name": "NonProfit Times", "url": "https://www.thenonprofittimes.com/feed/", "lang": "en" }
+  ],
+
+  "_default": [
+    { "name": "BBC World News", "url": "https://feeds.bbci.co.uk/news/rss.xml", "lang": "en" },
+    { "name": "The Hindu Top Stories", "url": "https://www.thehindu.com/rssfeeds/topstories.xml", "lang": "en" },
+    { "name": "Times of India Top Stories", "url": "https://timesofindia.indiatimes.com/rssfeedstopstories.cms", "lang": "en" },
+    { "name": "NDTV India", "url": "https://feeds.feedburner.com/ndtvnews-top-stories", "lang": "en" },
+    { "name": "Economic Times", "url": "https://economictimes.indiatimes.com/rssfeeds/1977021501.cms", "lang": "en" },
+    { "name": "Social Media Today", "url": "https://www.socialmediatoday.com/rss.xml", "lang": "en" }
+  ]
+}

@@ -8,8 +8,8 @@ import {
   Users2, GitCompare, Eye, Target, UserCircle2, Megaphone, Layers,
   CalendarDays, CheckSquare, Lightbulb, ClipboardCheck, BookOpen,
   Settings, Link2, ShieldCheck, ChevronDown, ChevronsLeft, ChevronsRight,
-  Building2, Sparkles, FileText, Video, Rss, Search, TrendingUp,
-  Map, Activity,
+  Building2, Sparkles, FileText, Video, Search, TrendingUp,
+  Map, Activity, MessageCircle,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useOrgStore } from '@/store/org.store'
@@ -33,6 +33,8 @@ const NAV_SECTIONS = [
       { label: 'Instagram',       href: '/analytics/instagram', icon: Instagram },
       { label: 'Facebook',        href: '/analytics/facebook',  icon: Facebook },
       { label: 'YouTube',         href: '/analytics/youtube',   icon: Youtube },
+      { label: 'WhatsApp',        href: '/analytics/whatsapp',  icon: MessageCircle },
+      { label: 'Search & SEO',    href: '/analytics/seo',       icon: Search },
     ],
   },
   {
@@ -41,6 +43,7 @@ const NAV_SECTIONS = [
       { label: 'Competitors',   href: '/competitors',              icon: Users2 },
       { label: 'Gap Analysis',  href: '/competitors/gap-analysis', icon: GitCompare },
       { label: 'Content Spy',   href: '/competitors/content',      icon: Eye },
+      { label: 'Local Map',     href: '/competitors/map',          icon: Map },
     ],
   },
   {

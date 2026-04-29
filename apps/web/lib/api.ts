@@ -320,15 +320,32 @@ export interface CompetitorPost {
   engagementRate: number | null
 }
 
+export interface DiscoveryMeta {
+  lastDiscoveryAt: string | null
+  counts: { total: number; confirmed: number; pending: number; dismissed: number }
+}
+
 export const competitorApi = {
-  list: () => request<{ competitors: Competitor[] }>('/api/competitors'),
+  list: (status?: string) =>
+    request<{ competitors: Competitor[] }>(
+      `/api/competitors${status ? `?status=${status}` : ''}`,
+    ),
+  listDiscovery: () =>
+    request<Competitor[]>('/api/competitors?format=discovery'),
   get: (id: string) => request<{ competitor: Competitor }>(`/api/competitors/${id}`),
   add: (body: { name: string; platform: string; handle: string }) =>
     request<{ competitor: Competitor }>('/api/competitors', { method: 'POST', body: JSON.stringify(body) }),
   update: (id: string, body: Partial<{ name: string; handle: string; isActive: boolean }>) =>
     request<{ competitor: Competitor }>(`/api/competitors/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  updateStatus: (id: string, status: 'CONFIRMED' | 'DISMISSED' | 'PENDING') =>
+    request<{ competitor: Competitor }>(`/api/competitors/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status }),
+    }),
   remove: (id: string) => request(`/api/competitors/${id}`, { method: 'DELETE' }),
   sync: (id: string) => request(`/api/competitors/${id}/sync`, { method: 'POST' }),
+  rediscover: () => request<{ message: string }>('/api/competitors/rediscover', { method: 'POST' }),
+  discoveryMeta: () => request<DiscoveryMeta>('/api/competitors/meta/discovery'),
   posts: (id: string, limit = 20) =>
     request<{ posts: CompetitorPost[] }>(`/api/competitors/${id}/posts?limit=${limit}`),
 }
