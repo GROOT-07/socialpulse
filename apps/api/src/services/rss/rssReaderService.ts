@@ -29,7 +29,7 @@ type IndustryFeeds = Record<string, FeedConfig[]>
 
 // ── Helpers ───────────────────────────────────────────────────
 
-const FEEDS = rssFeedConfig as IndustryFeeds
+const FEEDS = rssFeedConfig as unknown as IndustryFeeds
 
 const CACHE_TTL = 3600 // 1 hour
 

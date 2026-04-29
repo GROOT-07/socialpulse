@@ -5,6 +5,7 @@
 
 import Anthropic from '@anthropic-ai/sdk'
 import { prisma } from '../../lib/prisma'
+import { Platform, Prisma } from '@prisma/client'
 
 const MODEL = 'claude-sonnet-4-20250514'
 
@@ -118,8 +119,8 @@ Return ONLY the JSON, no markdown.`
 
   await prisma.playbookSection.upsert({
     where: { orgId_sectionType: { orgId, sectionType: 'STRATEGY' } },
-    update: { content: result as object, generatedByAI: true },
-    create: { orgId, sectionType: 'STRATEGY', content: result as object, generatedByAI: true },
+    update: { content: result as unknown as Prisma.InputJsonValue, generatedByAI: true },
+    create: { orgId, sectionType: 'STRATEGY', content: result as unknown as Prisma.InputJsonValue, generatedByAI: true },
   })
 
   return result
@@ -195,8 +196,8 @@ Write 3-5 paragraphs of actionable, specific strategy content for this section. 
 
   await prisma.playbookSection.upsert({
     where: { orgId_sectionType: { orgId, sectionType: sectionType as 'BRAND_VOICE' | 'STRATEGY' | 'POSTING_GUIDE' | 'OUTREACH' } },
-    update: { content: { text } as object, generatedByAI: true },
-    create: { orgId, sectionType: sectionType as 'BRAND_VOICE' | 'STRATEGY' | 'POSTING_GUIDE' | 'OUTREACH', content: { text } as object, generatedByAI: true },
+    update: { content: { text } as unknown as Prisma.InputJsonValue, generatedByAI: true },
+    create: { orgId, sectionType: sectionType as 'BRAND_VOICE' | 'STRATEGY' | 'POSTING_GUIDE' | 'OUTREACH', content: { text } as unknown as Prisma.InputJsonValue, generatedByAI: true },
   })
 
   return text
@@ -356,7 +357,7 @@ Generate 3 distinct social media post variations for "${org.name}" (${org.indust
 
 Topic: ${params.topic}
 Tone: ${params.tone ?? (voice?.adjectives as string[] | null)?.[0] ?? 'professional'}
-Content pillars: ${pillars.map((p) => p.name).join(', ')}
+Content pillars: ${pillars.map((p) => p.title).join(', ')}
 Keywords to include: ${(params.keywords ?? []).join(', ')}
 City: ${org.city ?? 'India'}
 
@@ -518,7 +519,7 @@ Generate a 30-day social media content calendar for "${org.name}" (${org.industr
 
 Month: ${new Date(params.year, params.month - 1).toLocaleString('en', { month: 'long' })} ${params.year}
 Platforms: ${platforms.join(', ')}
-Content pillars: ${pillars.map((p) => p.name).join(', ')}
+Content pillars: ${pillars.map((p) => p.title).join(', ')}
 Special days this month: ${specialDays.map((d) => `${d.date.toISOString().split('T')[0]}: ${d.name}`).join(', ')}
 Days in month: ${daysInMonth}
 Post frequency: 1 post per day per active platform
@@ -588,8 +589,8 @@ export async function generateTrendingIdeas(
   const [org, trendingTopics] = await Promise.all([
     prisma.organization.findUnique({ where: { id: orgId } }),
     prisma.trendingTopic.findMany({
-      where: { ...(params.platform ? { platform: params.platform } : {}) },
-      orderBy: { trendScore: 'desc' },
+      where: { ...(params.platform ? { platform: params.platform as Platform } : {}) },
+      orderBy: { trendDelta: 'desc' },
       take: 20,
     }),
   ])
@@ -601,7 +602,7 @@ export async function generateTrendingIdeas(
   const prompt = `
 Generate ${count} trending content ideas for "${org.name}" (${org.industry}) targeting ${platform} platform.
 
-Current trending topics/hashtags: ${trendingTopics.map((t) => `${t.topic} (score: ${t.trendScore})`).join(', ')}
+Current trending topics/hashtags: ${trendingTopics.map((t) => `${t.topic} (delta: ${t.trendDelta}%)`).join(', ')}
 City/region: ${org.city ?? 'India'}
 Industry: ${org.industry}
 

@@ -8,17 +8,18 @@
  */
 
 import { Router, type Request, type Response } from 'express'
-import { createClient } from 'redis'
+import { createClient } from 'ioredis'
 import { authenticate } from '../middleware/auth'
 import { prisma } from '../lib/prisma'
+import type { AuthRequest } from '../middleware/auth'
 
-const router = Router()
+const router: Router = Router()
 
 // ── SSE progress stream ───────────────────────────────────────
 
-router.get('/:orgId', authenticate, async (req: Request, res: Response) => {
+router.get('/:orgId', authenticate, async (req: AuthRequest, res: Response) => {
   const { orgId } = req.params as { orgId: string }
-  const userId = req.user!.userId
+  const userId = req.user?.userId
 
   // Verify org membership
   const membership = await prisma.orgMember.findFirst({
@@ -51,7 +52,7 @@ router.get('/:orgId', authenticate, async (req: Request, res: Response) => {
 
   try {
     await subscriber.connect()
-  } catch {
+  } catch (err: unknown) {
     res.write(`data: ${JSON.stringify({ step: 'error', status: 'error', message: 'Could not connect to progress service', ts: Date.now() })}\n\n`)
     res.end()
     return
@@ -81,7 +82,7 @@ router.get('/:orgId', authenticate, async (req: Request, res: Response) => {
         }
       }
     }
-  } catch {
+  } catch (err: unknown) {
     // Non-fatal — just skip buffered events
   }
 
@@ -98,7 +99,7 @@ router.get('/:orgId', authenticate, async (req: Request, res: Response) => {
     try {
       await subscriber.unsubscribe(`progress:${orgId}`)
       await subscriber.quit()
-    } catch {
+    } catch (err: unknown) {
       // Ignore cleanup errors
     }
   })

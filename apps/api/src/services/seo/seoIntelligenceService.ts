@@ -12,7 +12,7 @@ import {
   checkKeywordRank,
   getCompetitorKeywords,
 } from '../../lib/serpapi'
-import { KeywordCategory } from '@prisma/client'
+import { KeywordCategory, Prisma } from '@prisma/client'
 
 // ── Types ─────────────────────────────────────────────────────
 
@@ -262,12 +262,12 @@ export async function calculatePresenceScore(orgId: string): Promise<number> {
     create: {
       orgId,
       presenceScore: breakdown.total,
-      presenceScoreBreakdown: breakdown,
+      presenceScoreBreakdown: breakdown as unknown as Prisma.InputJsonValue,
       lastScannedAt: new Date(),
     },
     update: {
       presenceScore: breakdown.total,
-      presenceScoreBreakdown: breakdown,
+      presenceScoreBreakdown: breakdown as unknown as Prisma.InputJsonValue,
       lastScannedAt: new Date(),
     },
   })

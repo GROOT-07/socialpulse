@@ -37,7 +37,7 @@ import {
   type ContentStrategyJobData,
   type OrgSummaryJobData,
 } from '../lib/queue'
-import { Platform } from '@prisma/client'
+import { Platform, Prisma } from '@prisma/client'
 
 // ── SSE progress helper ───────────────────────────────────────
 
@@ -112,24 +112,24 @@ Return JSON only.`
         where: { orgId },
         create: {
           orgId,
-          googleKgData: kgData ?? {},
-          googlePlacesData: placesData ?? {},
+          googleKgData: (kgData ?? {}) as unknown as Prisma.InputJsonValue,
+          googlePlacesData: (placesData ?? {}) as unknown as Prisma.InputJsonValue,
           detectedKeywords: aiData.detectedKeywords ?? [],
           strengths: aiData.strengths ?? [],
-          urgentIssues: aiData.urgentIssues ?? [],
-          quickWins: aiData.quickWins ?? [],
-          aiDiagnosis: { description: aiData.description },
+          urgentIssues: (aiData.urgentIssues ?? []) as unknown as Prisma.InputJsonValue,
+          quickWins: (aiData.quickWins ?? []) as unknown as Prisma.InputJsonValue,
+          aiDiagnosis: { description: aiData.description } as unknown as Prisma.InputJsonValue,
           presenceScore: 0,
           lastScannedAt: new Date(),
         },
         update: {
-          googleKgData: kgData ?? {},
-          googlePlacesData: placesData ?? {},
+          googleKgData: (kgData ?? {}) as unknown as Prisma.InputJsonValue,
+          googlePlacesData: (placesData ?? {}) as unknown as Prisma.InputJsonValue,
           detectedKeywords: aiData.detectedKeywords ?? [],
           strengths: aiData.strengths ?? [],
-          urgentIssues: aiData.urgentIssues ?? [],
-          quickWins: aiData.quickWins ?? [],
-          aiDiagnosis: { description: aiData.description },
+          urgentIssues: (aiData.urgentIssues ?? []) as unknown as Prisma.InputJsonValue,
+          quickWins: (aiData.quickWins ?? []) as unknown as Prisma.InputJsonValue,
+          aiDiagnosis: { description: aiData.description } as unknown as Prisma.InputJsonValue,
           lastScannedAt: new Date(),
         },
       })
@@ -211,7 +211,7 @@ const socialProfileScanWorker = new Worker<SocialProfileScanJobData>(
           followers: profile.followers,
           following: profile.following,
           posts: profile.postsCount,
-          rawJson: profile as unknown as Record<string, unknown>,
+          rawJson: profile as unknown as Prisma.InputJsonValue,
         },
         update: {
           followers: profile.followers,
@@ -516,7 +516,7 @@ Include 4 weeks, ~5 actions per week. Return JSON only.`
             quickWins: org.orgIntelligence?.quickWins ?? [],
             roadmap,
             generatedAt: new Date().toISOString(),
-          },
+          } as unknown as Prisma.InputJsonValue,
         },
         update: {
           generatedByAI: true,
@@ -528,7 +528,7 @@ Include 4 weeks, ~5 actions per week. Return JSON only.`
             quickWins: org.orgIntelligence?.quickWins ?? [],
             roadmap,
             generatedAt: new Date().toISOString(),
-          },
+          } as unknown as Prisma.InputJsonValue,
         },
       })
 

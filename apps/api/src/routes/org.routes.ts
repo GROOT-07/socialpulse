@@ -13,6 +13,7 @@ import {
   socialProfileScanQueue,
 } from '../lib/queue'
 import { prisma } from '../lib/prisma'
+import { Platform } from '@prisma/client'
 import type { Request, Response } from 'express'
 
 const router: ReturnType<typeof Router> = Router()
@@ -173,9 +174,9 @@ router.get('/:id/trending', async (req: Request, res: Response) => {
   const topics = await prisma.trendingTopic.findMany({
     where: {
       orgId: id,
-      ...(platform ? { platform } : {}),
+      ...(platform ? { platform: platform as Platform } : {}),
     },
-    orderBy: { trendScore: 'desc' },
+    orderBy: { trendDelta: 'desc' },
     take: limit,
   })
 

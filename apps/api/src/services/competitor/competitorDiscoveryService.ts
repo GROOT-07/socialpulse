@@ -173,9 +173,10 @@ async function runGoogleMapsSearch(org: OrgContext): Promise<DiscoveredCompetito
 
 async function runSocialDiscovery(org: OrgContext): Promise<DiscoveredCompetitor[]> {
   const candidates: DiscoveredCompetitor[] = []
-  const platforms = org.activePlatforms.filter((p) =>
+  const filteredPlatforms: ('INSTAGRAM' | 'FACEBOOK' | 'YOUTUBE')[] = org.activePlatforms.filter((p) =>
     [Platform.INSTAGRAM, Platform.FACEBOOK, Platform.YOUTUBE].includes(p),
-  )
+  ) as ('INSTAGRAM' | 'FACEBOOK' | 'YOUTUBE')[]
+  const platforms = filteredPlatforms
 
   // Use SerpAPI to find social media handles for local businesses
   const searchQuery = `${org.industry} ${org.city ?? ''} site:instagram.com OR site:facebook.com OR site:youtube.com`
