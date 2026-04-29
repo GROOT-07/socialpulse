@@ -1,0 +1,28 @@
+# render.yaml — Render Blueprint for SocialPulse API
+# Docs: https://render.com/docs/blueprint-spec
+
+services:
+  - type: web
+    name: socialpulse-api
+    runtime: node
+    region: oregon
+    plan: free  # change to "starter" for always-on ($7/mo)
+    branch: main
+
+    buildCommand: >
+      pnpm install --frozen-lockfile &&
+      pnpm --filter @socialpulse/api exec prisma generate &&
+      pnpm --filter @socialpulse/api run build
+
+    startCommand: node apps/api/dist/index.js
+
+    healthCheckPath: /health
+
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 4000
+      # The following must be set manually in the Render dashboard:
+      # DATABASE_URL, REDIS_URL, JWT_SECRET, JWT_REFRESH_SECRET,
+      # ENCRYPTION_KEY, API_BASE_URL, CORS_ORIGINS, ANTHROPIC_API_KEY
