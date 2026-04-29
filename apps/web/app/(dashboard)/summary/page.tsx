@@ -407,7 +407,7 @@ function SEOSection({ intelligence, keywords }: {
               <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-4)] mb-2">You rank for</p>
               <div className="flex flex-wrap gap-1.5">
                 {intelligence!.detectedKeywords.slice(0, 5).map((kw) => (
-                  <Badge key={kw} variant="secondary" className="text-[10px]">{kw}</Badge>
+                  <Badge key={kw} variant="outline" className="text-[10px]">{kw}</Badge>
                 ))}
               </div>
             </div>
