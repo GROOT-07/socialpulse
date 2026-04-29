@@ -7,8 +7,9 @@
  *         competitor-discovery | seo-keywords | content-strategy | org-summary
  */
 
-import { Router, type Request, type Response } from 'express'
-import { createClient } from 'ioredis'
+import { Router } from 'express'
+import type { Response } from 'express'
+import Redis from 'ioredis'
 import { authenticate } from '../middleware/auth'
 import { prisma } from '../lib/prisma'
 import type { AuthRequest } from '../middleware/auth'
@@ -19,7 +20,7 @@ const router: Router = Router()
 
 router.get('/:orgId', authenticate, async (req: AuthRequest, res: Response) => {
   const { orgId } = req.params as { orgId: string }
-  const userId = req.user?.userId
+  const userId = req.user?.sub  // JwtPayload uses 'sub' for the user id
 
   // Verify org membership
   const membership = await prisma.orgMember.findFirst({
@@ -44,22 +45,33 @@ router.get('/:orgId', authenticate, async (req: AuthRequest, res: Response) => {
   // Send initial heartbeat
   res.write(`data: ${JSON.stringify({ step: 'connected', status: 'done', ts: Date.now() })}\n\n`)
 
-  // Create a dedicated Redis subscriber connection
-  const subscriber = createClient({
-    url: process.env['REDIS_URL'],
-    socket: { tls: process.env['REDIS_URL']?.startsWith('rediss://') },
-  })
+  const redisUrl = process.env['REDIS_URL']
 
-  try {
-    await subscriber.connect()
-  } catch (err: unknown) {
-    res.write(`data: ${JSON.stringify({ step: 'error', status: 'error', message: 'Could not connect to progress service', ts: Date.now() })}\n\n`)
+  if (!redisUrl) {
+    res.write(`data: ${JSON.stringify({ step: 'error', status: 'error', message: 'Progress service unavailable', ts: Date.now() })}\n\n`)
     res.end()
     return
   }
 
+  // Create a dedicated Redis subscriber connection (ioredis connects automatically)
+  const subscriber = new Redis(redisUrl, {
+    tls: redisUrl.startsWith('rediss://') ? {} : undefined,
+    lazyConnect: false,
+  })
+
+  subscriber.on('error', () => {
+    if (!res.writableEnded) {
+      res.write(`data: ${JSON.stringify({ step: 'error', status: 'error', message: 'Could not connect to progress service', ts: Date.now() })}\n\n`)
+      res.end()
+    }
+  })
+
   // Subscribe to org's progress channel
-  await subscriber.subscribe(`progress:${orgId}`, (message) => {
+  // In ioredis, subscribe() puts the client into subscriber mode;
+  // messages arrive via the 'message' event.
+  await subscriber.subscribe(`progress:${orgId}`)
+
+  subscriber.on('message', (_channel: string, message: string) => {
     if (!res.writableEnded) {
       res.write(`data: ${message}\n\n`)
     }
@@ -68,21 +80,19 @@ router.get('/:orgId', authenticate, async (req: AuthRequest, res: Response) => {
   // Send any buffered events from Redis list (jobs already completed)
   const bufferedKey = `sse:progress:${orgId}`
   try {
-    const redisUrl = process.env['REDIS_URL']
-    if (redisUrl) {
-      const tempClient = createClient({ url: redisUrl, socket: { tls: redisUrl.startsWith('rediss://') } })
-      await tempClient.connect()
-      const buffered = await tempClient.lRange(bufferedKey, 0, -1)
-      await tempClient.quit()
+    const tempClient = new Redis(redisUrl, {
+      tls: redisUrl.startsWith('rediss://') ? {} : undefined,
+    })
+    const buffered = await tempClient.lrange(bufferedKey, 0, -1)
+    await tempClient.quit()
 
-      // Send in reverse order (oldest first)
-      for (const event of buffered.reverse()) {
-        if (!res.writableEnded) {
-          res.write(`data: ${event}\n\n`)
-        }
+    // Send in reverse order (oldest first)
+    for (const event of buffered.reverse()) {
+      if (!res.writableEnded) {
+        res.write(`data: ${event}\n\n`)
       }
     }
-  } catch (err: unknown) {
+  } catch {
     // Non-fatal — just skip buffered events
   }
 
@@ -98,8 +108,8 @@ router.get('/:orgId', authenticate, async (req: AuthRequest, res: Response) => {
     clearInterval(heartbeat)
     try {
       await subscriber.unsubscribe(`progress:${orgId}`)
-      await subscriber.quit()
-    } catch (err: unknown) {
+      subscriber.disconnect()
+    } catch {
       // Ignore cleanup errors
     }
   })

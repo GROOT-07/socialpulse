@@ -173,10 +173,11 @@ async function runGoogleMapsSearch(org: OrgContext): Promise<DiscoveredCompetito
 
 async function runSocialDiscovery(org: OrgContext): Promise<DiscoveredCompetitor[]> {
   const candidates: DiscoveredCompetitor[] = []
-  const filteredPlatforms: ('INSTAGRAM' | 'FACEBOOK' | 'YOUTUBE')[] = org.activePlatforms.filter((p) =>
-    [Platform.INSTAGRAM, Platform.FACEBOOK, Platform.YOUTUBE].includes(p),
-  ) as ('INSTAGRAM' | 'FACEBOOK' | 'YOUTUBE')[]
-  const platforms = filteredPlatforms
+  const SOCIAL_PLATFORMS = ['INSTAGRAM', 'FACEBOOK', 'YOUTUBE'] as const
+  type SocialPlatform = typeof SOCIAL_PLATFORMS[number]
+  const platforms = org.activePlatforms.filter(
+    (p): p is SocialPlatform => (SOCIAL_PLATFORMS as readonly string[]).includes(p),
+  )
 
   // Use SerpAPI to find social media handles for local businesses
   const searchQuery = `${org.industry} ${org.city ?? ''} site:instagram.com OR site:facebook.com OR site:youtube.com`
@@ -185,7 +186,7 @@ async function runSocialDiscovery(org: OrgContext): Promise<DiscoveredCompetitor
   for (const result of organicResults) {
     const platform = detectPlatform(result.link)
     if (!platform) continue
-    if (!platforms.includes(platform)) continue
+    if (!(platforms as string[]).includes(platform)) continue
 
     const handle = extractSocialHandle(result.link, platform)
     if (!handle) continue
