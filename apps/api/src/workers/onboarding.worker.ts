@@ -18,11 +18,10 @@ import { aiService } from '../services/ai/aiService'
 import { discoverCompetitors } from '../services/competitor/competitorDiscoveryService'
 import { discoverKeywords, calculatePresenceScore } from '../services/seo/seoIntelligenceService'
 import { searchKnowledgeGraph, findPlace } from '../lib/googleApis'
-import {
-  getInstagramCompetitorProfile,
-  getFacebookCompetitorProfile,
-  getYouTubeCompetitorProfile,
-} from '../services/competitor/data365Service'
+import { scrapeInstagramProfile, scrapeFacebookPage } from '../services/social/apifyService'
+import { getYouTubeChannelPublic } from '../services/social/youtubeService'
+import { syncPublicAccount } from '../services/social/socialDataService'
+import { generateCalendarForOrg } from '../services/calendar/calendarGenerationService'
 import {
   orgIntelligenceQueue,
   socialProfileScanQueue,
@@ -166,65 +165,67 @@ const socialProfileScanWorker = new Worker<SocialProfileScanJobData>(
         return
       }
 
-      let profile = null
-      if (platform === 'INSTAGRAM') {
-        profile = await getInstagramCompetitorProfile(handle)
-      } else if (platform === 'FACEBOOK') {
-        profile = await getFacebookCompetitorProfile(handle)
-      } else if (platform === 'YOUTUBE') {
-        profile = await getYouTubeCompetitorProfile(handle)
-      }
-
-      if (!profile) {
-        await emitProgress(orgId, `scan-${platform.toLowerCase()}`, 'done', 'Profile not found')
-        return
-      }
-
       const platformEnum = platform as Platform
 
-      // Upsert social account
+      // Upsert social account with profileUrl first (so we have the record)
       const account = await prisma.socialAccount.upsert({
         where: { orgId_platform: { orgId, platform: platformEnum } },
-        create: {
-          orgId,
-          platform: platformEnum,
-          handle: profile.handle,
-          profileUrl,
-        },
-        update: {
-          handle: profile.handle,
-          profileUrl,
-        },
+        create: { orgId, platform: platformEnum, handle, profileUrl },
+        update: { handle, profileUrl },
       })
 
-      // Store initial metrics snapshot
-      await prisma.socialMetrics.upsert({
-        where: {
-          socialAccountId_snapshotDate: {
-            socialAccountId: account.id,
-            snapshotDate: new Date(new Date().toISOString().split('T')[0] ?? new Date()),
-          },
-        },
-        create: {
-          socialAccountId: account.id,
-          snapshotDate: new Date(new Date().toISOString().split('T')[0] ?? new Date()),
-          followers: profile.followers,
-          following: profile.following,
-          posts: profile.postsCount,
-          rawJson: profile as unknown as Prisma.InputJsonValue,
-        },
-        update: {
-          followers: profile.followers,
-          following: profile.following,
-          posts: profile.postsCount,
-        },
-      })
+      // Fetch public profile data via Apify (Instagram/Facebook) or YouTube Data API
+      let followers = 0
+      let displayName = handle
+
+      if (platform === 'INSTAGRAM') {
+        const ig = await scrapeInstagramProfile(handle).catch(() => null)
+        if (ig) {
+          followers = ig.followersCount
+          displayName = ig.fullName || ig.username
+          const engRate = followers > 0
+            ? ((ig.avgLikesPerPost + ig.avgCommentsPerPost) / followers) * 100 : 0
+          const today = new Date(); today.setUTCHours(0, 0, 0, 0)
+          await prisma.socialMetrics.upsert({
+            where: { socialAccountId_snapshotDate: { socialAccountId: account.id, snapshotDate: today } },
+            create: { socialAccountId: account.id, snapshotDate: today, followers, following: ig.followsCount, posts: ig.postsCount, engagementRate: Math.round(engRate * 100) / 100, avgLikes: ig.avgLikesPerPost, avgComments: ig.avgCommentsPerPost, rawJson: ig as unknown as Prisma.InputJsonValue },
+            update: { followers, following: ig.followsCount, posts: ig.postsCount, engagementRate: Math.round(engRate * 100) / 100, avgLikes: ig.avgLikesPerPost, avgComments: ig.avgCommentsPerPost },
+          })
+        }
+      } else if (platform === 'FACEBOOK') {
+        const fb = await scrapeFacebookPage(profileUrl).catch(() => null)
+        if (fb) {
+          followers = fb.followersCount || fb.likes
+          displayName = fb.title
+          const today = new Date(); today.setUTCHours(0, 0, 0, 0)
+          await prisma.socialMetrics.upsert({
+            where: { socialAccountId_snapshotDate: { socialAccountId: account.id, snapshotDate: today } },
+            create: { socialAccountId: account.id, snapshotDate: today, followers, following: 0, posts: 0, rawJson: fb as unknown as Prisma.InputJsonValue },
+            update: { followers, following: 0 },
+          })
+        }
+      } else if (platform === 'YOUTUBE') {
+        const yt = await getYouTubeChannelPublic(handle).catch(() => null)
+        if (yt) {
+          followers = yt.subscriberCount
+          displayName = yt.title
+          await prisma.socialAccount.update({ where: { id: account.id }, data: { handle: yt.id } })
+          const today = new Date(); today.setUTCHours(0, 0, 0, 0)
+          await prisma.socialMetrics.upsert({
+            where: { socialAccountId_snapshotDate: { socialAccountId: account.id, snapshotDate: today } },
+            create: { socialAccountId: account.id, snapshotDate: today, followers, following: 0, posts: yt.videoCount, rawJson: yt as unknown as Prisma.InputJsonValue },
+            update: { followers, following: 0, posts: yt.videoCount },
+          })
+        }
+      }
 
       await emitProgress(
         orgId,
         `scan-${platform.toLowerCase()}`,
         'done',
-        `${platform} connected — ${profile.followers.toLocaleString()} followers`,
+        followers > 0
+          ? `${displayName} — ${followers.toLocaleString()} followers`
+          : `${platform} profile saved`,
       )
     } catch (err) {
       await emitProgress(orgId, `scan-${platform.toLowerCase()}`, 'error', String(err))
@@ -533,6 +534,13 @@ Include 4 weeks, ~5 actions per week. Return JSON only.`
       })
 
       await emitProgress(orgId, 'org-summary', 'done', 'Your dashboard is ready!')
+
+      // Auto-generate 30-day content calendar (non-blocking — failure doesn't fail the job)
+      generateCalendarForOrg(orgId, 30).then((count) => {
+        console.info(`[onboarding] Auto-generated ${count} calendar posts for org ${orgId}`)
+      }).catch((err) => {
+        console.warn(`[onboarding] Calendar auto-generation failed for org ${orgId}:`, String(err))
+      })
     } catch (err) {
       await emitProgress(orgId, 'org-summary', 'error', String(err))
       throw err

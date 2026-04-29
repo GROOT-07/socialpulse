@@ -15,9 +15,14 @@ import {
 } from './metaService'
 import {
   getYouTubeChannel,
+  getYouTubeChannelPublic,
   getYouTubeVideos,
   refreshYouTubeToken,
 } from './youtubeService'
+import {
+  scrapeInstagramProfile,
+  scrapeFacebookPage,
+} from './apifyService'
 
 // ── Main sync dispatcher ──────────────────────────────────────
 
@@ -47,28 +52,34 @@ export async function syncSocialAccount(socialAccountId: string): Promise<void> 
 }
 
 // ── Sync all accounts for an org ──────────────────────────────
+// Uses OAuth (full insights) when accessToken exists, falls back to
+// Apify/YouTube public API when the account was added via URL scan.
 
 export async function syncOrgAccounts(orgId: string): Promise<void> {
-  const accounts = await prisma.socialAccount.findMany({
-    where: { orgId, accessToken: { not: null } },
-  })
+  const accounts = await prisma.socialAccount.findMany({ where: { orgId } })
 
-  await Promise.allSettled(accounts.map((a) => syncSocialAccount(a.id)))
+  await Promise.allSettled(
+    accounts.map((a) =>
+      a.accessToken ? syncSocialAccount(a.id) : syncPublicAccount(a.id),
+    ),
+  )
 }
 
 // ── Sync all accounts across all orgs ────────────────────────
 
 export async function syncAllOrgs(): Promise<void> {
   const accounts = await prisma.socialAccount.findMany({
-    where: { accessToken: { not: null } },
-    select: { id: true },
+    select: { id: true, accessToken: true },
   })
 
-  // Process in batches of 5 to avoid rate limiting
   const BATCH = 5
   for (let i = 0; i < accounts.length; i += BATCH) {
     const batch = accounts.slice(i, i + BATCH)
-    await Promise.allSettled(batch.map((a) => syncSocialAccount(a.id)))
+    await Promise.allSettled(
+      batch.map((a) =>
+        a.accessToken ? syncSocialAccount(a.id) : syncPublicAccount(a.id),
+      ),
+    )
   }
 }
 
@@ -325,5 +336,177 @@ export async function refreshExpiringTokens(socialAccountId?: string): Promise<v
     } catch (err) {
       console.error(`❌ Failed to refresh token for SocialAccount ${account.id}:`, err)
     }
+  }
+}
+
+// ── Public sync (no OAuth — uses Apify + YouTube Data API) ────
+// Called when a social account was added via profile URL scan (no access token).
+
+export async function syncPublicAccount(socialAccountId: string): Promise<void> {
+  const account = await prisma.socialAccount.findUnique({ where: { id: socialAccountId } })
+  if (!account) return
+
+  const handle = account.handle ?? extractHandleFromProfileUrl(account.profileUrl ?? '', account.platform)
+  if (!handle) {
+    console.warn(`[public-sync] No handle for account ${socialAccountId}`)
+    return
+  }
+
+  try {
+    switch (account.platform) {
+      case 'INSTAGRAM':
+        await syncInstagramPublic(socialAccountId, handle)
+        break
+      case 'FACEBOOK':
+        await syncFacebookPublic(socialAccountId, account.profileUrl ?? handle)
+        break
+      case 'YOUTUBE':
+        await syncYouTubePublic(socialAccountId, handle)
+        break
+      default:
+        // WHATSAPP / GOOGLE — no public scraping available
+        break
+    }
+  } catch (err) {
+    console.warn(`[public-sync] Failed for ${account.platform} @${handle}:`, String(err))
+  }
+}
+
+// ── Instagram public sync via Apify ──────────────────────────
+
+async function syncInstagramPublic(socialAccountId: string, handle: string): Promise<void> {
+  const profile = await scrapeInstagramProfile(handle)
+  if (!profile) return
+
+  const followers = profile.followersCount
+  const engagementRate =
+    followers > 0
+      ? ((profile.avgLikesPerPost + profile.avgCommentsPerPost) / followers) * 100
+      : 0
+
+  // Update the account handle/profileUrl if we got good data
+  await prisma.socialAccount.update({
+    where: { id: socialAccountId },
+    data: {
+      handle: profile.username,
+      profileUrl: `https://instagram.com/${profile.username}`,
+    },
+  })
+
+  await upsertDailyMetrics(socialAccountId, {
+    followers,
+    following: profile.followsCount,
+    posts: profile.postsCount,
+    engagementRate: Math.round(engagementRate * 100) / 100,
+    reach: 0,
+    impressions: 0,
+    avgLikes: profile.avgLikesPerPost,
+    avgComments: profile.avgCommentsPerPost,
+    rawJson: profile as unknown as Prisma.InputJsonValue,
+  })
+
+  console.info(
+    `[public-sync] Instagram @${profile.username} — ${followers.toLocaleString()} followers`,
+  )
+}
+
+// ── Facebook public sync via Apify ────────────────────────────
+
+async function syncFacebookPublic(socialAccountId: string, pageUrl: string): Promise<void> {
+  const page = await scrapeFacebookPage(pageUrl)
+  if (!page) return
+
+  const followers = page.followersCount || page.likes
+
+  await upsertDailyMetrics(socialAccountId, {
+    followers,
+    following: 0,
+    posts: 0,
+    engagementRate: 0,
+    reach: 0,
+    impressions: 0,
+    avgLikes: 0,
+    avgComments: 0,
+    rawJson: page as unknown as Prisma.InputJsonValue,
+  })
+
+  console.info(
+    `[public-sync] Facebook "${page.title}" — ${followers.toLocaleString()} followers`,
+  )
+}
+
+// ── YouTube public sync via Data API v3 ──────────────────────
+
+async function syncYouTubePublic(socialAccountId: string, handle: string): Promise<void> {
+  const channel = await getYouTubeChannelPublic(handle)
+  if (!channel) return
+
+  // Update channel ID as handle so future syncs are faster
+  await prisma.socialAccount.update({
+    where: { id: socialAccountId },
+    data: { handle: channel.id },
+  })
+
+  await upsertDailyMetrics(socialAccountId, {
+    followers: channel.subscriberCount,
+    following: 0,
+    posts: channel.videoCount,
+    engagementRate: 0,
+    reach: 0,
+    impressions: 0,
+    avgLikes: 0,
+    avgComments: 0,
+    rawJson: channel as unknown as Prisma.InputJsonValue,
+  })
+
+  console.info(
+    `[public-sync] YouTube "${channel.title}" — ${channel.subscriberCount.toLocaleString()} subscribers`,
+  )
+}
+
+// ── Shared upsert helper ──────────────────────────────────────
+
+async function upsertDailyMetrics(
+  socialAccountId: string,
+  data: {
+    followers: number
+    following: number
+    posts: number
+    engagementRate: number
+    reach: number
+    impressions: number
+    avgLikes: number
+    avgComments: number
+    rawJson: Prisma.InputJsonValue
+  },
+): Promise<void> {
+  const today = new Date()
+  today.setUTCHours(0, 0, 0, 0)
+
+  await prisma.socialMetrics.upsert({
+    where: { socialAccountId_snapshotDate: { socialAccountId, snapshotDate: today } },
+    create: { socialAccountId, snapshotDate: today, ...data },
+    update: data,
+  })
+}
+
+// ── Handle extraction from profile URL ───────────────────────
+
+function extractHandleFromProfileUrl(url: string, platform: string): string | null {
+  if (!url) return null
+  try {
+    const u = new URL(url.startsWith('http') ? url : `https://${url}`)
+    const parts = u.pathname.split('/').filter(Boolean)
+    if (platform === 'YOUTUBE') {
+      // Support /@handle, /channel/UCxxx, /c/name, /user/name
+      const idx = parts.findIndex((p) => p.startsWith('@') || p === 'channel' || p === 'c' || p === 'user')
+      if (idx >= 0) {
+        const seg = parts[idx]
+        return seg?.startsWith('@') ? seg.slice(1) : (parts[idx + 1] ?? parts[0] ?? null)
+      }
+    }
+    return parts[0] ?? null
+  } catch {
+    return url.replace('@', '').split('/').pop() ?? null
   }
 }

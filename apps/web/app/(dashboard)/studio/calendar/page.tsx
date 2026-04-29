@@ -5,38 +5,15 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   CalendarDays, Sparkles, Loader2, Instagram, Facebook, Youtube,
   MessageCircle, ChevronLeft, ChevronRight, Star, Zap, Search, Flame,
-  Plus, RefreshCw,
+  Plus,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { cn } from '@/lib/utils'
 import { useOrgStore } from '@/store/org.store'
-import { apiClient } from '@/lib/api'
+import { calendarApi, apiClient, type CalendarPost } from '@/lib/api'
 import { toast } from 'sonner'
-
-// ── Types ─────────────────────────────────────────────────────
-
-interface CalendarPost {
-  date: string
-  platform: string
-  topic: string
-  type: string
-  caption: string
-  hashtags: string[]
-  specialDayRef: string | null
-}
-
-interface ExistingCalendarItem {
-  id: string
-  date: string
-  platform: string
-  topic: string
-  format: string
-  status: string
-  contentPillar: string | null
-}
 
 // ── Platform helpers ──────────────────────────────────────────
 
@@ -54,17 +31,10 @@ const PLATFORM_COLORS: Record<string, string> = {
   WHATSAPP: 'var(--platform-whatsapp)',
 }
 
-const TYPE_ICONS: Record<string, React.ReactNode> = {
-  SPECIAL_DAY: <Star className="h-2.5 w-2.5" />,
-  TRENDING: <Flame className="h-2.5 w-2.5" />,
-  SEO: <Search className="h-2.5 w-2.5" />,
-  LOW_COMPETITION: <Zap className="h-2.5 w-2.5" />,
-}
-
-function getTypeColor(type: string): string {
-  if (type === 'REEL' || type === 'VIDEO') return 'var(--platform-youtube)'
-  if (type === 'CAROUSEL') return 'var(--color-info)'
-  if (type === 'STORY') return 'var(--platform-instagram)'
+function getFormatColor(format: string): string {
+  if (format === 'REEL' || format === 'VIDEO' || format === 'SHORT') return 'var(--platform-youtube)'
+  if (format === 'CAROUSEL') return 'var(--color-info)'
+  if (format === 'STORY') return 'var(--platform-instagram)'
   return 'var(--color-accent)'
 }
 
@@ -75,16 +45,12 @@ function DayCell({
   posts,
   isCurrentMonth,
   isToday,
-  onAddPost,
 }: {
   date: Date
   posts: CalendarPost[]
   isCurrentMonth: boolean
   isToday: boolean
-  onAddPost: (date: string) => void
 }) {
-  const dateStr = date.toISOString().split('T')[0]
-
   return (
     <div
       className={cn(
@@ -103,14 +69,6 @@ function DayCell({
         >
           {date.getDate()}
         </span>
-        {isCurrentMonth && (
-          <button
-            onClick={() => onAddPost(dateStr)}
-            className="opacity-0 group-hover:opacity-100 h-4 w-4 rounded flex items-center justify-center text-[var(--color-text-4)] hover:text-[var(--color-accent)] hover:bg-[var(--color-accent-light)] transition-all"
-          >
-            <Plus className="h-3 w-3" />
-          </button>
-        )}
       </div>
 
       {/* Posts */}
@@ -123,11 +81,10 @@ function DayCell({
               key={i}
               className="flex items-center gap-1 rounded px-1.5 py-0.5 text-[10px] truncate cursor-pointer hover:opacity-80 transition-opacity"
               style={{ backgroundColor: `${color}18`, color }}
-              title={post.topic}
+              title={`[${post.format}] ${post.topic}`}
             >
               {Icon && <Icon className="h-2.5 w-2.5 shrink-0" />}
               <span className="truncate">{post.topic}</span>
-              {post.specialDayRef && <Star className="h-2 w-2 shrink-0" />}
             </div>
           )
         })}
@@ -152,32 +109,28 @@ export default function SmartCalendarPage() {
   const today = new Date()
   const [currentMonth, setCurrentMonth] = useState(today.getMonth())
   const [currentYear, setCurrentYear] = useState(today.getFullYear())
-  const [aiPosts, setAiPosts] = useState<CalendarPost[]>([])
-  const [selectedPost, setSelectedPost] = useState<CalendarPost | null>(null)
 
-  // Existing calendar items from DB
-  const { data: existingItems = [], isLoading } = useQuery({
+  // Calendar posts from DB
+  const { data: calendarData, isLoading } = useQuery({
     queryKey: ['calendar', orgId, currentMonth, currentYear],
     queryFn: () => {
-      const from = new Date(currentYear, currentMonth, 1).toISOString().split('T')[0]
-      const to = new Date(currentYear, currentMonth + 1, 0).toISOString().split('T')[0]
-      return apiClient.get<ExistingCalendarItem[]>(`/api/orgs/${orgId}/calendar?from=${from}&to=${to}`)
+      const from = new Date(currentYear, currentMonth, 1).toISOString().split('T')[0]!
+      const to = new Date(currentYear, currentMonth + 1, 0).toISOString().split('T')[0]!
+      return calendarApi.list(from, to)
     },
     enabled: !!orgId,
   })
 
+  const posts = calendarData?.posts ?? []
+
   const generateMutation = useMutation({
     mutationFn: () =>
-      apiClient.post<{ calendar: CalendarPost[] }>('/api/ai/generate-calendar', {
-        month: currentMonth + 1,
-        year: currentYear,
-        platforms: activeOrg?.activePlatforms ?? ['INSTAGRAM', 'FACEBOOK'],
-      }),
-    onSuccess: (data) => {
-      setAiPosts(data.calendar ?? [])
-      toast.success(`Generated ${data.calendar?.length ?? 0} posts for ${monthLabel}`)
+      apiClient.post<{ generated: number; daysAhead: number }>('/api/calendar/generate', { days: 30 }),
+    onSuccess: (res) => {
+      void queryClient.invalidateQueries({ queryKey: ['calendar', orgId] })
+      toast.success(`Generated ${res.generated ?? 0} posts for the next 30 days`)
     },
-    onError: () => toast.error('Calendar generation failed. Check your API configuration.'),
+    onError: () => toast.error('Calendar generation failed. Please try again.'),
   })
 
   // Build calendar grid
@@ -199,19 +152,7 @@ export default function SmartCalendarPage() {
   }
 
   function postsForDate(dateStr: string): CalendarPost[] {
-    const aiForDate = aiPosts.filter((p) => p.date === dateStr)
-    const existingForDate: CalendarPost[] = existingItems
-      .filter((item) => item.date.split('T')[0] === dateStr)
-      .map((item) => ({
-        date: item.date,
-        platform: item.platform,
-        topic: item.topic,
-        type: item.format,
-        caption: '',
-        hashtags: [],
-        specialDayRef: null,
-      }))
-    return [...existingForDate, ...aiForDate]
+    return posts.filter((p) => p.date.split('T')[0] === dateStr)
   }
 
   const monthLabel = new Date(currentYear, currentMonth).toLocaleString('en', { month: 'long', year: 'numeric' })
@@ -219,13 +160,11 @@ export default function SmartCalendarPage() {
   function prevMonth() {
     if (currentMonth === 0) { setCurrentMonth(11); setCurrentYear(currentYear - 1) }
     else setCurrentMonth(currentMonth - 1)
-    setAiPosts([])
   }
 
   function nextMonth() {
     if (currentMonth === 11) { setCurrentMonth(0); setCurrentYear(currentYear + 1) }
     else setCurrentMonth(currentMonth + 1)
-    setAiPosts([])
   }
 
   return (
@@ -249,20 +188,15 @@ export default function SmartCalendarPage() {
         </div>
 
         <div className="flex items-center gap-2">
-          {aiPosts.length > 0 && (
-            <Badge variant="outline" className="text-[10px]">
-              {aiPosts.length} AI posts loaded
-            </Badge>
-          )}
           <Button
             className="gap-2"
             disabled={generateMutation.isPending}
             onClick={() => generateMutation.mutate()}
           >
             {generateMutation.isPending ? (
-              <><Loader2 className="h-4 w-4 animate-spin" /> Filling calendar...</>
+              <><Loader2 className="h-4 w-4 animate-spin" /> Generating...</>
             ) : (
-              <><Sparkles className="h-4 w-4" /> Fill this month</>
+              <><Sparkles className="h-4 w-4" /> AI Generate (30 days)</>
             )}
           </Button>
         </div>
@@ -307,7 +241,6 @@ export default function SmartCalendarPage() {
                   posts={postsForDate(dateStr)}
                   isCurrentMonth={isCurrentMonth}
                   isToday={isToday}
-                  onAddPost={() => {}}
                 />
               </div>
             )
@@ -316,15 +249,17 @@ export default function SmartCalendarPage() {
       </div>
 
       {/* Empty state */}
-      {!isLoading && existingItems.length === 0 && aiPosts.length === 0 && (
+      {!isLoading && posts.length === 0 && (
         <div className="mt-6">
           <EmptyState
             icon={<CalendarDays className="h-10 w-10" />}
-            title="Calendar is empty for this month"
-            description="Click 'Fill this month' to auto-generate a full content calendar with special days, trending topics, and SEO opportunities."
+            title="No posts planned yet"
+            description="Let AI generate a full 30-day content calendar tailored to your brand, platforms, and content pillars — including special days and trending topics."
             action={
               <Button className="gap-2" onClick={() => generateMutation.mutate()} disabled={generateMutation.isPending}>
-                <Sparkles className="h-4 w-4" /> Auto-fill calendar
+                {generateMutation.isPending
+                  ? <><Loader2 className="h-4 w-4 animate-spin" /> Generating...</>
+                  : <><Sparkles className="h-4 w-4" /> AI Generate Calendar</>}
               </Button>
             }
           />

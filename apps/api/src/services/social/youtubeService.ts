@@ -348,3 +348,87 @@ export async function refreshYouTubeToken(refreshToken: string): Promise<{ acces
 
   return { accessToken: json.access_token, expiresIn: json.expires_in }
 }
+
+// ── Public channel lookup (API key only — no OAuth) ───────────
+// Works for any public YouTube channel. Requires YOUTUBE_API_KEY env var.
+
+interface YTPublicChannelResponse {
+  items?: Array<{
+    id: string
+    snippet: {
+      title: string
+      description: string
+      customUrl?: string
+      publishedAt: string
+      country?: string
+      thumbnails?: { default?: { url: string } }
+    }
+    statistics: {
+      subscriberCount?: string
+      videoCount?: string
+      viewCount?: string
+      hiddenSubscriberCount?: boolean
+    }
+  }>
+}
+
+export async function getYouTubeChannelPublic(
+  handleOrId: string,
+): Promise<YouTubeChannel | null> {
+  const apiKey = process.env['YOUTUBE_API_KEY']
+  if (!apiKey) {
+    console.warn('[youtube] YOUTUBE_API_KEY not set — cannot fetch public channel data')
+    return null
+  }
+
+  const cleanHandle = handleOrId.replace('@', '').trim()
+  const cacheKey = `yt:public:${cleanHandle}`
+  const cached = await cacheGet<YouTubeChannel>(cacheKey)
+  if (cached) return cached
+
+  // Try three lookup strategies: @handle, legacy username, direct channel ID
+  const strategies: Array<[string, string]> = [
+    ['forHandle', `@${cleanHandle}`],
+    ['forUsername', cleanHandle],
+    ...(cleanHandle.startsWith('UC') ? [['id', cleanHandle] as [string, string]] : []),
+  ]
+
+  for (const [param, value] of strategies) {
+    try {
+      const url = new URL(`${YT_BASE}/channels`)
+      url.searchParams.set('part', 'snippet,statistics')
+      url.searchParams.set(param, value)
+      url.searchParams.set('key', apiKey)
+
+      const res = await fetch(url.toString())
+      if (!res.ok) continue
+
+      const data = (await res.json()) as YTPublicChannelResponse
+      const item = data.items?.[0]
+      if (!item) continue
+
+      const channel: YouTubeChannel = {
+        id: item.id,
+        title: item.snippet.title,
+        description: item.snippet.description,
+        customUrl: item.snippet.customUrl ?? cleanHandle,
+        thumbnailUrl: item.snippet.thumbnails?.default?.url ?? '',
+        country: item.snippet.country ?? '',
+        subscriberCount: item.statistics.hiddenSubscriberCount
+          ? 0
+          : parseInt(item.statistics.subscriberCount ?? '0', 10),
+        videoCount: parseInt(item.statistics.videoCount ?? '0', 10),
+        viewCount: parseInt(item.statistics.viewCount ?? '0', 10),
+        publishedAt: item.snippet.publishedAt,
+      }
+
+      await cacheSet(cacheKey, channel, 3600)
+      return channel
+    } catch {
+      // try next strategy
+    }
+  }
+
+  console.warn(`[youtube] Could not find public channel for: ${handleOrId}`)
+  return null
+}

@@ -6,12 +6,14 @@ import {
   createCalendarPost,
   updateCalendarPost,
   deleteCalendarPost,
+  generateCalendar,
 } from '../controllers/calendar.controller'
 
 const router: ReturnType<typeof Router> = Router()
 router.use(authenticate)
 
 router.get('/', wrapAuth(listCalendar))
+router.post('/generate', wrapAuth(generateCalendar))  // AI auto-generate
 router.post('/', wrapAuth(createCalendarPost))
 router.patch('/:id', wrapAuth(updateCalendarPost))
 router.delete('/:id', wrapAuth(deleteCalendarPost))

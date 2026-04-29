@@ -1,6 +1,7 @@
 import type { Response } from 'express'
 import type { AuthRequest } from '../middleware/auth'
 import { prisma } from '../lib/prisma'
+import { generateCalendarForOrg } from '../services/calendar/calendarGenerationService'
 
 function org(req: AuthRequest): string { return (req.headers['x-org-id'] as string) || '' }
 
@@ -61,4 +62,15 @@ export async function updateCalendarPost(req: AuthRequest, res: Response): Promi
 export async function deleteCalendarPost(req: AuthRequest, res: Response): Promise<void> {
   await prisma.contentCalendar.deleteMany({ where: { id: req.params['id'], orgId: org(req) } })
   res.json({ data: { deleted: true } })
+}
+
+export async function generateCalendar(req: AuthRequest, res: Response): Promise<void> {
+  const orgId = org(req)
+  if (!orgId) { res.status(400).json({ error: 'x-org-id header required' }); return }
+
+  const { days = 30 } = req.body as { days?: number }
+  const daysAhead = Math.min(Math.max(Number(days) || 30, 7), 90)
+
+  const count = await generateCalendarForOrg(orgId, daysAhead)
+  res.json({ data: { generated: count, daysAhead } })
 }
