@@ -1,43 +1,57 @@
 'use client'
 
-import React, { useState } from 'react'
+import React from 'react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, Newspaper, BarChart2, Instagram, Facebook, Youtube,
   Users2, GitCompare, Eye, Target, UserCircle2, Megaphone, Layers,
   CalendarDays, CheckSquare, Lightbulb, ClipboardCheck, BookOpen,
-  Settings, Link2, ShieldCheck, ChevronDown, ChevronsLeft, ChevronsRight, Building2,
+  Settings, Link2, ShieldCheck, ChevronDown, ChevronsLeft, ChevronsRight,
+  Building2, Sparkles, FileText, Video, Rss, Search, TrendingUp,
+  Map, Activity,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useOrgStore } from '@/store/org.store'
 import { getInitials } from '@/lib/utils'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
-// ── Nav structure (from MASTER_PROMPT §Layout) ────────────────
+// ── Nav structure (MODIFICATIONS_V2 §8) ───────────────────────
 const NAV_SECTIONS = [
   {
     label: 'Overview',
     items: [
-      { label: 'Dashboard',   href: '/',       icon: LayoutDashboard },
-      { label: 'Daily brief', href: '/brief',  icon: Newspaper },
+      { label: 'Dashboard',            href: '/',        icon: LayoutDashboard },
+      { label: 'Organization Summary', href: '/summary', icon: Activity },
+      { label: 'Daily Brief',          href: '/brief',   icon: Newspaper },
     ],
   },
   {
     label: 'Analytics',
     items: [
-      { label: 'Social overview', href: '/analytics',           icon: BarChart2 },
+      { label: 'Social Overview', href: '/analytics',           icon: BarChart2 },
       { label: 'Instagram',       href: '/analytics/instagram', icon: Instagram },
       { label: 'Facebook',        href: '/analytics/facebook',  icon: Facebook },
       { label: 'YouTube',         href: '/analytics/youtube',   icon: Youtube },
     ],
   },
   {
-    label: 'Competitor intelligence',
+    label: 'Competitor Intelligence',
     items: [
-      { label: 'Competitors',    href: '/competitors',                  icon: Users2 },
-      { label: 'Gap analysis',   href: '/competitors/gap-analysis',     icon: GitCompare },
-      { label: 'Content spy',    href: '/competitors/content',          icon: Eye },
+      { label: 'Competitors',   href: '/competitors',              icon: Users2 },
+      { label: 'Gap Analysis',  href: '/competitors/gap-analysis', icon: GitCompare },
+      { label: 'Content Spy',   href: '/competitors/content',      icon: Eye },
+    ],
+  },
+  {
+    label: 'Content Studio',
+    items: [
+      { label: 'Post Generator',   href: '/studio/posts',     icon: Sparkles },
+      { label: 'Video & Reels',    href: '/studio/video',     icon: Video },
+      { label: 'Blog & Articles',  href: '/studio/blog',      icon: FileText },
+      { label: 'Smart Calendar',   href: '/studio/calendar',  icon: CalendarDays },
+      { label: 'SEO Planner',      href: '/studio/seo',       icon: Search },
+      { label: 'Trending Now',     href: '/studio/trends',    icon: TrendingUp },
     ],
   },
   {
@@ -45,31 +59,31 @@ const NAV_SECTIONS = [
     items: [
       { label: 'Goals & KPIs',    href: '/strategy/goals',    icon: Target },
       { label: 'Personas',        href: '/strategy/personas', icon: UserCircle2 },
-      { label: 'Brand voice',     href: '/strategy/voice',    icon: Megaphone },
-      { label: 'Content pillars', href: '/strategy/pillars',  icon: Layers },
+      { label: 'Brand Voice',     href: '/strategy/voice',    icon: Megaphone },
+      { label: 'Content Pillars', href: '/strategy/pillars',  icon: Layers },
     ],
   },
   {
     label: 'Execution',
     items: [
-      { label: 'Content calendar', href: '/calendar',  icon: CalendarDays },
-      { label: 'Outreach checklist',href: '/checklist', icon: CheckSquare },
-      { label: 'Ideas bank',       href: '/ideas',      icon: Lightbulb },
-      { label: 'Profile audit',    href: '/audit',      icon: ClipboardCheck },
+      { label: 'Outreach Checklist', href: '/checklist', icon: CheckSquare },
+      { label: 'Ideas Bank',         href: '/ideas',      icon: Lightbulb },
+      { label: 'Profile Audit',      href: '/audit',      icon: ClipboardCheck },
     ],
   },
   {
     label: 'Playbook',
     items: [
-      { label: 'View playbook', href: '/playbook', icon: BookOpen },
+      { label: 'View Playbook', href: '/playbook', icon: BookOpen },
     ],
   },
   {
     label: 'Admin',
     items: [
-      { label: 'Settings',            href: '/settings',          icon: Settings },
-      { label: 'Connected accounts',  href: '/settings/accounts', icon: Link2 },
-      { label: 'Admin panel',         href: '/admin',             icon: ShieldCheck },
+      { label: 'Settings',           href: '/settings',          icon: Settings },
+      { label: 'Connected Accounts', href: '/settings/accounts', icon: Link2 },
+      { label: 'Team Members',       href: '/settings/team',     icon: Users2 },
+      { label: 'Admin Panel',        href: '/admin',             icon: ShieldCheck },
     ],
   },
 ]

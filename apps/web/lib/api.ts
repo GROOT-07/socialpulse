@@ -123,8 +123,9 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
     throw new ApiError(res.status, body.message ?? 'Request failed', body)
   }
 
-  const json = await res.json()
-  return json.data as T
+  const json = await res.json() as { data?: T } & T
+  // Some endpoints return { data: ... } wrapper; others return the object directly
+  return (json.data !== undefined ? json.data : json) as T
 }
 
 export class ApiError extends Error {
@@ -181,6 +182,17 @@ export const metricsApi = {
   overview: (days = 30) => request<OverviewResponse>(`/api/metrics/overview?days=${days}`),
   platform: (platform: 'instagram' | 'facebook' | 'youtube', days = 30) =>
     request<PlatformMetricsResponse>(`/api/metrics/${platform}?days=${days}`),
+}
+
+// ── Generic API client (for onboarding + ad-hoc calls) ───────
+
+export const apiClient = {
+  get: <T>(path: string) => request<T>(path),
+  post: <T>(path: string, body?: object) =>
+    request<T>(path, { method: 'POST', body: body ? JSON.stringify(body) : undefined }),
+  patch: <T>(path: string, body?: object) =>
+    request<T>(path, { method: 'PATCH', body: body ? JSON.stringify(body) : undefined }),
+  delete: <T>(path: string) => request<T>(path, { method: 'DELETE' }),
 }
 
 // ── Social accounts ───────────────────────────────────────────
@@ -590,8 +602,31 @@ export const settingsApi = {
   updateOrg: (body: Partial<OrgSettings>) =>
     request<{ org: OrgSettings }>('/api/settings', { method: 'PATCH', body: JSON.stringify(body) }),
   listTeam: () => request<{ members: TeamMember[] }>('/api/settings/team'),
+  inviteMember: (email: string, role: string) =>
+    request<{ member: TeamMember }>('/api/settings/team/invite', { method: 'POST', body: JSON.stringify({ email, role }) }),
   updateRole: (userId: string, role: string) =>
     request<{ member: TeamMember }>(`/api/settings/team/${userId}/role`, { method: 'PATCH', body: JSON.stringify({ role }) }),
-
   removeMember: (userId: string) => request(`/api/settings/team/${userId}`, { method: 'DELETE' }),
+}
+
+// ── Special Days ──────────────────────────────────────────────
+export interface SpecialDay {
+  id: string
+  name: string
+  date: string
+  category: string
+  countries: string[]
+  industries: string[]
+  draftPostTemplate: string | null
+}
+
+export const specialDaysApi = {
+  upcoming: (days = 30, country?: string, industry?: string) => {
+    const params = new URLSearchParams({ days: String(days) })
+    if (country) params.set('country', country)
+    if (industry) params.set('industry', industry)
+    return request<SpecialDay[]>(`/api/special-days/upcoming?${params}`)
+  },
+  byMonth: (month: number, year: number) =>
+    request<SpecialDay[]>(`/api/special-days?month=${month}&year=${year}`),
 }

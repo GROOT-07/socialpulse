@@ -65,6 +65,54 @@ enum PlaybookSectionType {
   STRATEGY
   POSTING_GUIDE
   OUTREACH
+  ORG_SUMMARY
+}
+
+enum KeywordCategory {
+  QUICK_WIN
+  MEDIUM
+  LONG_TERM
+  LOCAL
+}
+
+enum ContentPieceType {
+  POST
+  REEL_SCRIPT
+  BLOG
+  ARTICLE
+  VIDEO_SCRIPT
+  FAQ
+  LANDING_PAGE
+  GOOGLE_POST
+}
+
+enum ContentPieceStatus {
+  DRAFT
+  SCHEDULED
+  PUBLISHED
+  ARCHIVED
+}
+
+enum SpecialDayCategory {
+  NATIONAL_HOLIDAY
+  RELIGIOUS
+  INDUSTRY
+  INTERNATIONAL
+  AUSPICIOUS
+}
+
+enum CompetitorStatus {
+  PENDING
+  CONFIRMED
+  DISMISSED
+}
+
+enum CompetitorSource {
+  GOOGLE_LOCAL
+  GOOGLE_MAPS
+  SOCIAL_DISCOVERY
+  SEO_COMPETITOR
+  MANUAL
 }
 
 // ─── Models ────────────────────────────────────────────────────────────────
@@ -123,6 +171,11 @@ model Organization {
   ownerId          String
   owner            User       @relation("OrgOwner", fields: [ownerId], references: [id])
 
+  // New v2 fields
+  website          String?
+  businessType     String?          // LOCAL | REGIONAL | NATIONAL | GLOBAL
+  language         String           @default("English")
+
   // Relations
   members          OrgMember[]
   socialAccounts   SocialAccount[]
@@ -137,6 +190,10 @@ model Organization {
   playbookSections PlaybookSection[]
   dailyBriefs      DailyBrief[]
   voiceProfile     BrandVoice?
+  keywordOpportunities KeywordOpportunity[]
+  contentPieces    ContentPiece[]
+  orgIntelligence  OrgIntelligence?
+  trendingTopics   TrendingTopic[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -200,15 +257,25 @@ model SocialMetrics {
 }
 
 model Competitor {
-  id         String       @id @default(cuid())
-  orgId      String
-  org        Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  platform   Platform
-  handle     String
-  profileUrl String?
-  addedAt    DateTime     @default(now())
+  id               String           @id @default(cuid())
+  orgId            String
+  org              Organization     @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  platform         Platform
+  handle           String
+  profileUrl       String?
+  businessName     String?
+  logoUrl          String?
+  address          String?
+  city             String?
+  website          String?
+  relevanceScore   Int              @default(0) // 0-100, AI-assigned
+  status           CompetitorStatus @default(PENDING)
+  source           CompetitorSource @default(GOOGLE_LOCAL)
+  discoveryReason  String?          // AI explanation of why this is a competitor
+  addedAt          DateTime         @default(now())
 
   metrics    CompetitorMetrics[]
+  posts      CompetitorPost[]
 
   @@unique([orgId, platform, handle])
   @@map("competitors")
@@ -407,4 +474,117 @@ model DailyBrief {
 
   @@unique([orgId, date])
   @@map("daily_briefs")
+}
+
+// ── New V2 Models ──────────────────────────────────────────────
+
+model KeywordOpportunity {
+  id               String          @id @default(cuid())
+  orgId            String
+  org              Organization    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  keyword          String
+  searchVolume     Int             @default(0)
+  difficulty       Int             @default(50) // 1-100
+  currentRank      Int?            // null = not ranking
+  competitorDomain String?
+  competitorRank   Int?
+  targetRank       Int             @default(1)
+  category         KeywordCategory @default(MEDIUM)
+  contentCreated   Boolean         @default(false)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  @@unique([orgId, keyword])
+  @@map("keyword_opportunities")
+}
+
+model ContentPiece {
+  id               String             @id @default(cuid())
+  orgId            String
+  org              Organization       @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  type             ContentPieceType
+  platform         Platform?
+  title            String
+  content          String             @db.Text
+  hashtags         String[]
+  seoScore         Int                @default(0) // 0-100
+  keywordTargeted  String?
+  status           ContentPieceStatus @default(DRAFT)
+  scheduledAt      DateTime?
+  publishedAt      DateTime?
+  externalUrl      String?
+  generatedByAI    Boolean            @default(true)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+
+  @@map("content_pieces")
+}
+
+model OrgIntelligence {
+  id                      String       @id @default(cuid())
+  orgId                   String       @unique
+  org                     Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  googleKgData            Json?
+  googlePlacesData        Json?
+  websiteMetaData         Json?
+  detectedKeywords        String[]
+  presenceScore           Int          @default(0) // 0-100
+  presenceScoreBreakdown  Json?
+  strengths               String[]
+  urgentIssues            Json?        // array of {issue, actionLink}
+  quickWins               Json?        // array of {action, impact}
+  aiDiagnosis             Json?
+  lastScannedAt           DateTime?
+  createdAt               DateTime     @default(now())
+
+  @@map("org_intelligence")
+}
+
+model SpecialDay {
+  id                String           @id @default(cuid())
+  name              String
+  date              DateTime         @db.Date
+  category          SpecialDayCategory
+  countries         String[]
+  industries        String[]         // empty = all industries
+  draftPostTemplate String?          @db.Text
+  createdAt         DateTime         @default(now())
+
+  @@unique([name, date])
+  @@map("special_days")
+}
+
+model TrendingTopic {
+  id                  String       @id @default(cuid())
+  orgId               String
+  org                 Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  topic               String
+  category            String
+  searchVolume        Int          @default(0)
+  trendDelta          Float        @default(0) // % change
+  competitorsCovering Int          @default(0)
+  suggestedPostDraft  String?      @db.Text
+  platform            Platform?
+  fetchedAt           DateTime     @default(now())
+
+  @@map("trending_topics")
+}
+
+model CompetitorPost {
+  id             String       @id @default(cuid())
+  competitorId   String
+  competitor     Competitor   @relation(fields: [competitorId], references: [id], onDelete: Cascade)
+  platform       Platform
+  postUrl        String?
+  caption        String?      @db.Text
+  likesCount     Int          @default(0)
+  commentsCount  Int          @default(0)
+  sharesCount    Int          @default(0)
+  engagementRate Float        @default(0)
+  postedAt       DateTime?
+  contentType    String?      // IMAGE | VIDEO | REEL | CAROUSEL
+  hashtags       String[]
+  fetchedAt      DateTime     @default(now())
+
+  @@map("competitor_posts")
 }

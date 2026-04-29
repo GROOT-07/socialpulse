@@ -2,8 +2,9 @@
 
 import React, { useState, useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Save, UserCog, Trash2 } from 'lucide-react'
-import { settingsApi, type TeamMember } from '@/lib/api'
+import { Save, Settings, Building2, Palette, Globe, Link2, Users } from 'lucide-react'
+import Link from 'next/link'
+import { settingsApi } from '@/lib/api'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -14,179 +15,346 @@ import { Badge } from '@/components/ui/badge'
 import { toast } from 'sonner'
 
 const TIMEZONES = [
-  'UTC', 'America/New_York', 'America/Los_Angeles', 'America/Chicago',
-  'Europe/London', 'Europe/Berlin', 'Asia/Tokyo', 'Asia/Singapore', 'Australia/Sydney',
+  'UTC',
+  'America/New_York',
+  'America/Chicago',
+  'America/Denver',
+  'America/Los_Angeles',
+  'America/Sao_Paulo',
+  'Europe/London',
+  'Europe/Paris',
+  'Europe/Berlin',
+  'Europe/Moscow',
+  'Africa/Lagos',
+  'Africa/Johannesburg',
+  'Asia/Dubai',
+  'Asia/Kolkata',
+  'Asia/Singapore',
+  'Asia/Tokyo',
+  'Asia/Seoul',
+  'Australia/Sydney',
+  'Pacific/Auckland',
+]
+
+const INDUSTRIES = [
+  'Advertising & Marketing',
+  'Agriculture',
+  'Architecture & Design',
+  'Automotive',
+  'Beauty & Personal Care',
+  'Business Services',
+  'Construction',
+  'Consulting',
+  'E-commerce & Retail',
+  'Education',
+  'Entertainment & Media',
+  'Fashion & Apparel',
+  'Finance & Banking',
+  'Fitness & Wellness',
+  'Food & Beverage',
+  'Healthcare & Medical',
+  'Hospitality & Tourism',
+  'Insurance',
+  'Legal Services',
+  'Logistics & Transportation',
+  'Manufacturing',
+  'Non-profit & NGO',
+  'Photography & Videography',
+  'Real Estate',
+  'Restaurant & Cafe',
+  'Software & Technology',
+  'Sports',
+  'Other',
 ]
 
 export default function SettingsPage() {
   const qc = useQueryClient()
 
-  const { data: orgData, isLoading: orgLoading } = useQuery({
+  const { data: orgData, isLoading } = useQuery({
     queryKey: ['org-settings'],
     queryFn: () => settingsApi.getOrg(),
   })
-  const { data: teamData } = useQuery({
-    queryKey: ['team'],
-    queryFn: () => settingsApi.listTeam(),
-  })
 
-  const [form, setForm] = useState({ name: '', industry: '', city: '', country: '', timezone: 'UTC' })
+  const [form, setForm] = useState({
+    name: '',
+    industry: '',
+    city: '',
+    country: '',
+    timezone: 'UTC',
+    brandColor: '#5B7FFF',
+  })
   const [dirty, setDirty] = useState(false)
 
   useEffect(() => {
     if (orgData?.org) {
       setForm({
-        name: orgData.org.name,
+        name: orgData.org.name ?? '',
         industry: orgData.org.industry ?? '',
         city: orgData.org.city ?? '',
         country: orgData.org.country ?? '',
         timezone: orgData.org.timezone ?? 'UTC',
+        brandColor: orgData.org.brandColor ?? '#5B7FFF',
       })
     }
   }, [orgData])
 
-  const saveOrgMutation = useMutation({
-    mutationFn: () => settingsApi.updateOrg({
-      name: form.name,
-      industry: form.industry || undefined,
-      city: form.city || undefined,
-      country: form.country || undefined,
-      timezone: form.timezone,
-    }),
+  const saveMutation = useMutation({
+    mutationFn: () =>
+      settingsApi.updateOrg({
+        name: form.name || undefined,
+        industry: form.industry || undefined,
+        city: form.city || undefined,
+        country: form.country || undefined,
+        timezone: form.timezone,
+        brandColor: form.brandColor,
+      }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['org-settings'] })
+      qc.invalidateQueries({ queryKey: ['active-org'] })
       setDirty(false)
-      toast.success('Settings saved')
+      toast.success('Organization settings saved')
     },
     onError: (e: Error) => toast.error(e.message),
   })
 
-  const updateRoleMutation = useMutation({
-    mutationFn: ({ userId, role }: { userId: string; role: string }) => settingsApi.updateRole(userId, role),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['team'] }); toast.success('Role updated') },
-    onError: (e: Error) => toast.error(e.message),
-  })
+  const field =
+    (k: keyof typeof form) =>
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      setForm((p) => ({ ...p, [k]: e.target.value }))
+      setDirty(true)
+    }
 
-  const removeMemberMutation = useMutation({
-    mutationFn: (userId: string) => settingsApi.removeMember(userId),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['team'] }); toast.success('Member removed') },
-    onError: (e: Error) => toast.error(e.message),
-  })
-
-  const field = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) => {
-    setForm(p => ({ ...p, [k]: e.target.value }))
-    setDirty(true)
-  }
-
-  const members: TeamMember[] = teamData?.members ?? []
+  const org = orgData?.org
 
   return (
     <>
-      <PageHeader title="Settings" description="Manage your organization settings and team." />
+      <PageHeader
+        title="Settings"
+        description="Manage your organization profile and preferences."
+        icon={<Settings className="h-5 w-5" />}
+        actions={
+          dirty ? (
+            <Button
+              size="sm"
+              onClick={() => saveMutation.mutate()}
+              disabled={!form.name || saveMutation.isPending}
+            >
+              <Save className="mr-1.5 h-3.5 w-3.5" />
+              {saveMutation.isPending ? 'Saving…' : 'Save Changes'}
+            </Button>
+          ) : undefined
+        }
+      />
 
-      <div className="space-y-6">
-        {/* Org settings */}
+      <div className="space-y-5">
+        {/* ── Organization Details ── */}
         <Card>
-          <CardHeader className="pb-3"><CardTitle className="text-sm">Organization</CardTitle></CardHeader>
-          <CardContent className="space-y-4">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-sm">
+              <Building2 className="h-4 w-4 text-[var(--color-text-3)]" />
+              Organization Details
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <div className="space-y-1.5">
-                <Label>Organization Name</Label>
-                <Input value={form.name} onChange={field('name')} disabled={orgLoading} />
+              <div className="space-y-1.5 sm:col-span-2">
+                <Label>Organization Name <span className="text-danger">*</span></Label>
+                <Input
+                  value={form.name}
+                  onChange={field('name')}
+                  placeholder="Acme Corp"
+                  disabled={isLoading}
+                />
               </div>
               <div className="space-y-1.5">
                 <Label>Industry</Label>
-                <Input value={form.industry} onChange={field('industry')} placeholder="e.g. E-commerce, SaaS, Health" disabled={orgLoading} />
-              </div>
-              <div className="space-y-1.5">
-                <Label>City</Label>
-                <Input value={form.city} onChange={field('city')} placeholder="New York" disabled={orgLoading} />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Country</Label>
-                <Input value={form.country} onChange={field('country')} placeholder="US" disabled={orgLoading} />
-              </div>
-              <div className="space-y-1.5 sm:col-span-2">
-                <Label>Timezone</Label>
-                <Select value={form.timezone} onValueChange={v => { setForm(p => ({ ...p, timezone: v })); setDirty(true) }}>
-                  <SelectTrigger disabled={orgLoading}><SelectValue /></SelectTrigger>
+                <Select
+                  value={form.industry}
+                  onValueChange={(v) => {
+                    setForm((p) => ({ ...p, industry: v }))
+                    setDirty(true)
+                  }}
+                  disabled={isLoading}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select industry…" />
+                  </SelectTrigger>
                   <SelectContent>
-                    {TIMEZONES.map(tz => <SelectItem key={tz} value={tz}>{tz}</SelectItem>)}
+                    {INDUSTRIES.map((ind) => (
+                      <SelectItem key={ind} value={ind}>
+                        {ind}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label>Timezone</Label>
+                <Select
+                  value={form.timezone}
+                  onValueChange={(v) => {
+                    setForm((p) => ({ ...p, timezone: v }))
+                    setDirty(true)
+                  }}
+                  disabled={isLoading}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {TIMEZONES.map((tz) => (
+                      <SelectItem key={tz} value={tz}>
+                        {tz}
+                      </SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
             </div>
-            {dirty && (
-              <div className="flex justify-end">
-                <Button size="sm" onClick={() => saveOrgMutation.mutate()} disabled={!form.name || saveOrgMutation.isPending}>
-                  <Save className="mr-1.5 h-3.5 w-3.5" />
-                  {saveOrgMutation.isPending ? 'Saving…' : 'Save Changes'}
-                </Button>
-              </div>
-            )}
           </CardContent>
         </Card>
 
-        {/* Team */}
+        {/* ── Location ── */}
         <Card>
           <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm flex items-center gap-2">
-                <UserCog className="h-4 w-4" />Team Members
-              </CardTitle>
-              <Badge variant="outline" className="text-xs">
-                {members.length} member{members.length !== 1 ? 's' : ''}
-              </Badge>
-            </div>
+            <CardTitle className="flex items-center gap-2 text-sm">
+              <Globe className="h-4 w-4 text-[var(--color-text-3)]" />
+              Location
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-2">
-              {members.map(m => (
-                <div key={m.id} className="flex items-center gap-3 rounded-lg p-2.5 hover:bg-surface-2 transition-colors">
-                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-accent text-white text-xs font-semibold">
-                    {m.user.email.slice(0, 2).toUpperCase()}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-[var(--color-text)] truncate">{m.user.email}</p>
-                    <p className="text-xs text-[var(--color-text-4)]">Joined {new Date(m.joinedAt).toLocaleDateString()}</p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Select value={m.role} onValueChange={role => updateRoleMutation.mutate({ userId: m.userId, role })}>
-                      <SelectTrigger className="h-7 w-28 text-xs"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="ORG_ADMIN">Admin</SelectItem>
-                        <SelectItem value="VIEWER">Viewer</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <Button
-                      variant="ghost" size="sm"
-                      className="h-7 w-7 p-0 text-danger hover:text-danger"
-                      onClick={() => removeMemberMutation.mutate(m.userId)}
-                    >
-                      <Trash2 className="h-3.5 w-3.5" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-              {members.length === 0 && (
-                <p className="py-4 text-center text-sm text-[var(--color-text-4)]">No team members yet.</p>
-              )}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label>City</Label>
+                <Input
+                  value={form.city}
+                  onChange={field('city')}
+                  placeholder="New York"
+                  disabled={isLoading}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Country code</Label>
+                <Input
+                  value={form.country}
+                  onChange={field('country')}
+                  placeholder="US"
+                  maxLength={2}
+                  className="uppercase"
+                  disabled={isLoading}
+                />
+                <p className="text-xs text-[var(--color-text-4)]">ISO 2-letter code, e.g. US, IN, GB</p>
+              </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Connected Accounts shortcut */}
+        {/* ── Branding ── */}
         <Card>
-          <CardHeader className="pb-3"><CardTitle className="text-sm">Connected Accounts</CardTitle></CardHeader>
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-sm">
+              <Palette className="h-4 w-4 text-[var(--color-text-3)]" />
+              Brand Color
+            </CardTitle>
+          </CardHeader>
           <CardContent>
-            <p className="text-sm text-[var(--color-text-3)] mb-3">
-              Manage your Instagram, Facebook, and YouTube connections.
-            </p>
-            <Button variant="secondary" size="sm" asChild>
-              <a href="/settings/accounts">Manage Connections</a>
-            </Button>
+            <div className="flex items-center gap-4">
+              <input
+                type="color"
+                value={form.brandColor}
+                onChange={(e) => {
+                  setForm((p) => ({ ...p, brandColor: e.target.value }))
+                  setDirty(true)
+                }}
+                className="h-10 w-14 cursor-pointer rounded-lg border border-border bg-surface p-0.5"
+                disabled={isLoading}
+              />
+              <div>
+                <p className="text-sm font-medium text-[var(--color-text)]">{form.brandColor.toUpperCase()}</p>
+                <p className="text-xs text-[var(--color-text-4)]">
+                  Used as the accent color throughout your organization&apos;s dashboard.
+                </p>
+              </div>
+              <div
+                className="ml-auto h-8 w-20 rounded-lg"
+                style={{ background: form.brandColor }}
+              />
+            </div>
           </CardContent>
         </Card>
+
+        {/* ── Org info badges ── */}
+        {org && (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-sm">Organization Info</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-wrap gap-2">
+                <Badge variant="outline" className="text-xs gap-1">
+                  <span className="text-[var(--color-text-4)]">ID:</span>
+                  <span className="font-mono">{org.id.slice(0, 8)}…</span>
+                </Badge>
+                <Badge variant="outline" className="text-xs gap-1">
+                  <span className="text-[var(--color-text-4)]">Slug:</span>
+                  {org.slug}
+                </Badge>
+                {org.activePlatforms.length > 0 && (
+                  <Badge variant="outline" className="text-xs gap-1">
+                    <span className="text-[var(--color-text-4)]">Platforms:</span>
+                    {org.activePlatforms.join(', ')}
+                  </Badge>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* ── Quick links to other settings ── */}
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Card className="hover:border-accent/50 transition-colors">
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent-light text-accent">
+                <Link2 className="h-4 w-4" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-[var(--color-text)]">Connected Accounts</p>
+                <p className="text-xs text-[var(--color-text-4)]">Instagram, Facebook, YouTube OAuth</p>
+              </div>
+              <Button variant="ghost" size="sm" asChild>
+                <Link href="/settings/accounts">Manage</Link>
+              </Button>
+            </CardContent>
+          </Card>
+
+          <Card className="hover:border-accent/50 transition-colors">
+            <CardContent className="p-4 flex items-center gap-3">
+              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-accent-light text-accent">
+                <Users className="h-4 w-4" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium text-[var(--color-text)]">Team Members</p>
+                <p className="text-xs text-[var(--color-text-4)]">Invite colleagues and manage roles</p>
+              </div>
+              <Button variant="ghost" size="sm" asChild>
+                <Link href="/settings/team">Manage</Link>
+              </Button>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* ── Save footer for mobile ── */}
+        {dirty && (
+          <div className="flex justify-end pt-2">
+            <Button
+              onClick={() => saveMutation.mutate()}
+              disabled={!form.name || saveMutation.isPending}
+            >
+              <Save className="mr-1.5 h-3.5 w-3.5" />
+              {saveMutation.isPending ? 'Saving…' : 'Save Changes'}
+            </Button>
+          </div>
+        )}
       </div>
     </>
   )

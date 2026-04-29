@@ -61,11 +61,33 @@ export async function listCompetitors(req: AuthRequest, res: Response): Promise<
   const id = orgId(req)
   if (!id) { res.status(400).json({ error: 'x-org-id required' }); return }
 
+  const statusFilter = req.query['status'] as string | undefined
+
   const competitors = await prisma.competitor.findMany({
-    where: { orgId: id },
+    where: {
+      orgId: id,
+      ...(statusFilter ? { status: statusFilter as 'PENDING' | 'CONFIRMED' | 'DISMISSED' } : {}),
+    },
     include: { metrics: { orderBy: { snapshotDate: 'desc' }, take: 2 } },
-    orderBy: { addedAt: 'asc' },
+    orderBy: [{ relevanceScore: 'desc' }, { addedAt: 'asc' }],
   })
+
+  // For onboarding step 3: return raw format with v2 fields
+  if (req.query['format'] === 'discovery') {
+    res.json(competitors.map((c) => ({
+      id: c.id,
+      businessName: c.businessName ?? c.handle,
+      platform: c.platform,
+      handle: c.handle,
+      logoUrl: c.logoUrl,
+      address: c.address,
+      website: c.website,
+      relevanceScore: c.relevanceScore,
+      discoveryReason: c.discoveryReason ?? 'Auto-discovered competitor',
+      status: c.status,
+    })))
+    return
+  }
 
   res.json({ data: { competitors: competitors.map(mapCompetitor) } })
 }
@@ -105,14 +127,17 @@ export async function addCompetitor(req: AuthRequest, res: Response): Promise<vo
 export async function updateCompetitor(req: AuthRequest, res: Response): Promise<void> {
   const id = orgId(req)
   const { id: cId } = req.params
-  const { handle } = req.body as { handle?: string }
+  const { handle, status } = req.body as { handle?: string; status?: 'CONFIRMED' | 'DISMISSED' | 'PENDING' }
 
   const existing = await prisma.competitor.findFirst({ where: { id: cId, orgId: id ?? '' } })
   if (!existing) { res.status(404).json({ error: 'Not found' }); return }
 
   const c = await prisma.competitor.update({
     where: { id: cId },
-    data: { ...(handle !== undefined && { handle }) },
+    data: {
+      ...(handle !== undefined && { handle }),
+      ...(status !== undefined && { status }),
+    },
     include: { metrics: { orderBy: { snapshotDate: 'desc' }, take: 2 } },
   })
   res.json({ data: { competitor: mapCompetitor(c) } })

@@ -7,6 +7,7 @@ import {
   listTeamMembers,
   updateMemberRole,
   removeMember,
+  inviteTeamMember,
 } from '../controllers/settings.controller'
 
 const router: ReturnType<typeof Router> = Router()
@@ -15,6 +16,7 @@ router.use(authenticate)
 router.get('/', wrapAuth(getOrgSettings))
 router.patch('/', wrapAuth(updateOrgSettings))
 router.get('/team', wrapAuth(listTeamMembers))
+router.post('/team/invite', wrapAuth(inviteTeamMember))
 router.patch('/team/:userId/role', wrapAuth(updateMemberRole))
 router.delete('/team/:userId', wrapAuth(removeMember))
 

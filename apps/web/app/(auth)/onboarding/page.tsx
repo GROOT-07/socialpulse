@@ -1,347 +1,963 @@
 'use client'
 
-import React, { useState } from 'react'
+/**
+ * Onboarding v2 — 4-step intelligent wizard (MODIFICATIONS_V2.md §1)
+ *
+ * Step 1: Business Identity (triggers OrgIntelligenceJob + CompetitorDiscoveryJob)
+ * Step 2: Social Media Connections (URL scan via Data365, live preview cards)
+ * Step 3: Confirm Auto-Discovered Data (org info + competitor list)
+ * Step 4: Preferences + live job progress screen → /summary
+ */
+
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery } from '@tanstack/react-query'
 import {
-  CheckCircle2, ChevronRight, Instagram, Youtube, Plus, Trash2,
-  Building2, Palette, Users, Share2,
+  Building2, Globe, MapPin, ArrowRight, CheckCircle2, Loader2,
+  Instagram, Facebook, Youtube, MessageCircle, Search,
+  ChevronDown, XCircle, Users, Star, RefreshCcw, Sparkles,
+  Check, X, Bell, Languages, ToggleLeft, ToggleRight,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { cn } from '@/lib/utils'
-import { orgsApi, socialApi, competitorApi } from '@/lib/api'
 import { useOrgStore } from '@/store/org.store'
+import { orgsApi, apiClient } from '@/lib/api'
 import { toast } from 'sonner'
 
+// ── Constants ─────────────────────────────────────────────────
+
 const STEPS = [
-  { id: 1, label: 'Your organization', icon: Building2 },
-  { id: 2, label: 'Connect accounts',  icon: Share2 },
-  { id: 3, label: 'Add competitors',   icon: Users },
-  { id: 4, label: 'Pick platforms',    icon: Palette },
+  { id: 1, label: 'Business identity' },
+  { id: 2, label: 'Social accounts' },
+  { id: 3, label: 'Confirm data' },
+  { id: 4, label: 'Launch' },
 ]
 
-const PLATFORMS = [
-  { key: 'INSTAGRAM', label: 'Instagram', color: '#E1306C' },
-  { key: 'FACEBOOK',  label: 'Facebook',  color: '#1877F2' },
-  { key: 'YOUTUBE',   label: 'YouTube',   color: '#FF0000' },
+const INDUSTRIES = [
+  'Healthcare / Medical Clinic', 'Dental Clinic', 'Pharmacy', 'Fitness & Gym',
+  'Restaurant / Café', 'Bakery', 'Hotel & Hospitality', 'Real Estate',
+  'Education / Coaching', 'Beauty Salon / Spa', 'Clothing & Fashion',
+  'Electronics & Technology', 'Automobile', 'Legal Services', 'Financial Services',
+  'Event Management', 'Interior Design', 'Photography / Videography',
+  'Travel & Tourism', 'Supermarket / Grocery', 'Jewellery', 'Optical Store',
+  'Diagnostic Lab', 'Veterinary', 'Yoga & Wellness', 'Catering', 'Architecture',
+  'IT Services', 'Marketing Agency', 'Non-Profit / NGO', 'Other',
 ]
 
-// ── Step 1 — Org details ──────────────────────────────────────
+const PLATFORMS_CONFIG = [
+  { key: 'INSTAGRAM', label: 'Instagram', color: 'var(--platform-instagram)', icon: Instagram, example: 'instagram.com/yourclinic or @yourclinic' },
+  { key: 'FACEBOOK',  label: 'Facebook',  color: 'var(--platform-facebook)',  icon: Facebook,  example: 'facebook.com/yourpage' },
+  { key: 'YOUTUBE',   label: 'YouTube',   color: 'var(--platform-youtube)',   icon: Youtube,   example: 'youtube.com/@yourchannel' },
+  { key: 'WHATSAPP',  label: 'WhatsApp Business', color: 'var(--platform-whatsapp)', icon: MessageCircle, example: '+91 9876543210 or business page URL' },
+  { key: 'GOOGLE',    label: 'Google Business', color: 'var(--platform-google)', icon: Search, example: 'g.co/kgs/... or business name' },
+]
 
-function StepOrgDetails({ onNext }: { onNext: () => void }) {
-  const activeOrg = useOrgStore((s) => s.activeOrg)
-  const [brandColor, setBrandColor] = useState(activeOrg?.brandColor ?? '#4F6EF7')
-  const [industry, setIndustry] = useState(activeOrg?.industry ?? '')
+const LANGUAGES = ['English', 'Hindi', 'Telugu', 'Tamil', 'Kannada', 'Malayalam', 'Marathi', 'Bengali', 'Gujarati', 'Punjabi']
 
-  const mutation = useMutation({
-    mutationFn: () => orgsApi.update(activeOrg!.id, { brandColor, industry }),
-    onSuccess: () => onNext(),
-    onError: () => onNext(),
-  })
+// ── Types ─────────────────────────────────────────────────────
 
+interface ScanResult {
+  platform: string
+  handle: string
+  name: string
+  followers: number
+  profilePicUrl: string
+  lastPostDate: string | null
+  engagementRate: number
+  status: 'scanning' | 'done' | 'error'
+}
+
+interface DiscoveredCompetitor {
+  id: string
+  businessName: string
+  platform: string
+  handle: string
+  logoUrl: string | null
+  address: string | null
+  website: string | null
+  relevanceScore: number
+  discoveryReason: string
+  status: 'PENDING' | 'CONFIRMED' | 'DISMISSED'
+}
+
+interface OrgIntelligenceData {
+  googleKgData: { description?: string; name?: string } | null
+  googlePlacesData: { rating?: number; userRatingsTotal?: number; formattedAddress?: string } | null
+  detectedKeywords: string[]
+  strengths: string[]
+  urgentIssues: Array<{ issue: string; actionLink: string }>
+  aiDiagnosis: { description?: string } | null
+}
+
+interface JobProgress {
+  step: string
+  status: 'pending' | 'running' | 'done' | 'error'
+  message: string
+}
+
+// ── Step indicator ────────────────────────────────────────────
+
+function StepIndicator({ current }: { current: number }) {
   return (
-    <div className="space-y-5">
-      <div className="rounded-lg bg-surface-2 px-4 py-3 flex items-center gap-3">
-        <Building2 className="h-5 w-5 text-accent shrink-0" />
-        <div>
-          <p className="text-sm font-medium text-[var(--color-text)]">{activeOrg?.name}</p>
-          <p className="text-xs text-[var(--color-text-4)]">Your organization is ready</p>
-        </div>
-        <Badge variant="accent" className="ml-auto">Active</Badge>
-      </div>
-
-      <div className="space-y-1.5">
-        <Label htmlFor="industry">Industry</Label>
-        <Input
-          id="industry"
-          value={industry}
-          onChange={(e) => setIndustry(e.target.value)}
-          placeholder="e.g. Education, E-commerce, SaaS…"
-        />
-      </div>
-
-      <div className="space-y-1.5">
-        <Label>Brand colour</Label>
-        <div className="flex items-center gap-3">
-          <input
-            type="color"
-            value={brandColor}
-            onChange={(e) => setBrandColor(e.target.value)}
-            className="h-10 w-16 cursor-pointer rounded border border-brand-border bg-transparent p-1"
-          />
-          <span className="text-sm font-mono text-[var(--color-text-3)]">{brandColor}</span>
-        </div>
-      </div>
-
-      <Button
-        className="w-full"
-        onClick={() => mutation.mutate()}
-        loading={mutation.isPending}
-      >
-        Save & continue <ChevronRight className="h-4 w-4" />
-      </Button>
+    <div className="flex items-center justify-center gap-0 mb-10">
+      {STEPS.map((step, idx) => (
+        <React.Fragment key={step.id}>
+          <div className="flex flex-col items-center gap-1.5">
+            <div
+              className={cn(
+                'flex h-8 w-8 items-center justify-center rounded-full border-2 text-xs font-bold transition-all duration-normal',
+                current > step.id
+                  ? 'border-[var(--color-success)] bg-[var(--color-success)] text-white'
+                  : current === step.id
+                  ? 'border-[var(--color-accent)] bg-[var(--color-accent)] text-white'
+                  : 'border-[var(--color-border-2)] bg-transparent text-[var(--color-text-4)]',
+              )}
+            >
+              {current > step.id ? <CheckCircle2 className="h-4 w-4" /> : step.id}
+            </div>
+            <span
+              className={cn(
+                'text-[10px] font-medium whitespace-nowrap',
+                current === step.id ? 'text-[var(--color-accent)]' : 'text-[var(--color-text-4)]',
+              )}
+            >
+              {step.label}
+            </span>
+          </div>
+          {idx < STEPS.length - 1 && (
+            <div
+              className={cn(
+                'h-0.5 w-16 mb-5 transition-all duration-normal',
+                current > step.id + 1
+                  ? 'bg-[var(--color-success)]'
+                  : current > step.id
+                  ? 'bg-[var(--color-accent)]'
+                  : 'bg-[var(--color-border)]',
+              )}
+            />
+          )}
+        </React.Fragment>
+      ))}
     </div>
   )
 }
 
-// ── Step 2 — Connect social accounts ─────────────────────────
+// ── Step 1: Business Identity ─────────────────────────────────
 
-function StepConnectAccounts({ onNext }: { onNext: () => void }) {
-  const { data } = useQuery({
-    queryKey: ['social-accounts'],
-    queryFn: () => socialApi.getAccounts(),
-  })
-  const accounts = data?.accounts ?? []
+function Step1({ orgId, onNext }: { orgId: string; onNext: () => void }) {
+  const [name, setName]               = useState('')
+  const [industry, setIndustry]       = useState('')
+  const [industryOpen, setIndustryOpen] = useState(false)
+  const [industrySearch, setIndustrySearch] = useState('')
+  const [city, setCity]               = useState('')
+  const [country, setCountry]         = useState('India')
+  const [website, setWebsite]         = useState('')
+  const [businessType, setBusinessType] = useState('LOCAL')
+  const [loading, setLoading]         = useState(false)
 
-  const connect = async (platform: 'instagram' | 'facebook' | 'youtube') => {
+  const filteredIndustries = INDUSTRIES.filter((i) =>
+    i.toLowerCase().includes(industrySearch.toLowerCase()),
+  )
+
+  const handleContinue = async () => {
+    if (!name.trim() || !industry || !city.trim()) {
+      toast.error('Please fill in your business name, industry, and city.')
+      return
+    }
+    setLoading(true)
     try {
-      const res = await socialApi.getConnectUrl(platform)
-      if (res?.url) window.location.href = res.url
+      // Update org with business identity
+      await orgsApi.update(orgId, { name: name.trim(), industry, city, country, website: website || undefined })
+
+      // Trigger background jobs immediately (non-blocking)
+      void apiClient.post(`/api/orgs/${orgId}/jobs/intelligence`).catch(() => {})
+      void apiClient.post(`/api/orgs/${orgId}/jobs/competitor-discovery`).catch(() => {})
+
+      onNext()
     } catch {
-      toast.error('Could not start OAuth — check your API credentials')
+      toast.error('Could not save business details. Please try again.')
+    } finally {
+      setLoading(false)
     }
   }
 
-  const isConnected = (p: string) => accounts.some((a) => a.platform === p.toUpperCase())
-
   return (
-    <div className="space-y-4">
-      <p className="text-sm text-[var(--color-text-3)]">
-        Connect your social accounts so SocialPulse can pull metrics automatically.
-        You can always add more later in Settings.
-      </p>
-
-      {[
-        { id: 'instagram', label: 'Instagram', color: '#E1306C' },
-        { id: 'facebook',  label: 'Facebook',  color: '#1877F2' },
-        { id: 'youtube',   label: 'YouTube',   color: '#FF0000' },
-      ].map((p) => {
-        const connected = isConnected(p.id)
-        return (
-          <div key={p.id} className="flex items-center justify-between rounded-lg border border-brand-border px-4 py-3">
-            <div className="flex items-center gap-3">
-              <div className="h-8 w-8 rounded-full flex items-center justify-center" style={{ background: p.color + '20' }}>
-                {p.id === 'youtube'
-                  ? <Youtube className="h-4 w-4" style={{ color: p.color }} />
-                  : <Instagram className="h-4 w-4" style={{ color: p.color }} />}
-              </div>
-              <span className="text-sm font-medium">{p.label}</span>
-            </div>
-            {connected
-              ? <Badge variant="success">Connected</Badge>
-              : (
-                <Button size="sm" variant="secondary" onClick={() => connect(p.id as 'instagram' | 'facebook' | 'youtube')}>
-                  Connect
-                </Button>
-              )}
-          </div>
-        )
-      })}
-
-      <Button className="w-full mt-2" onClick={onNext}>
-        {accounts.length > 0 ? 'Continue' : 'Skip for now'} <ChevronRight className="h-4 w-4" />
-      </Button>
-    </div>
-  )
-}
-
-// ── Step 3 — Add competitors ──────────────────────────────────
-
-function StepCompetitors({ onNext }: { onNext: () => void }) {
-  const qc = useQueryClient()
-  const [form, setForm] = useState({ name: '', platform: 'INSTAGRAM', handle: '' })
-  const [added, setAdded] = useState<string[]>([])
-
-  const mutation = useMutation({
-    mutationFn: () => competitorApi.add({
-      name: form.name,
-      platform: form.platform as 'INSTAGRAM' | 'FACEBOOK' | 'YOUTUBE',
-      handle: form.handle,
-    }),
-    onSuccess: () => {
-      setAdded((p) => [...p, `${form.name} (${form.platform})`])
-      setForm({ name: '', platform: 'INSTAGRAM', handle: '' })
-      qc.invalidateQueries({ queryKey: ['competitors'] })
-      toast.success('Competitor added')
-    },
-    onError: (e: Error) => toast.error(e.message),
-  })
-
-  return (
-    <div className="space-y-4">
-      <p className="text-sm text-[var(--color-text-3)]">
-        Track what your competitors are doing. Add at least one to unlock gap analysis.
-      </p>
-
-      <div className="space-y-3">
-        <div className="space-y-1.5">
-          <Label>Competitor name</Label>
-          <Input value={form.name} onChange={(e) => setForm((p) => ({ ...p, name: e.target.value }))} placeholder="e.g. Acme Corp" />
-        </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label>Platform</Label>
-            <select
-              value={form.platform}
-              onChange={(e) => setForm((p) => ({ ...p, platform: e.target.value }))}
-              className="h-9 w-full rounded border border-brand-border-2 bg-surface px-3 text-sm text-[var(--color-text)]"
-            >
-              {PLATFORMS.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
-            </select>
-          </div>
-          <div className="space-y-1.5">
-            <Label>Handle</Label>
-            <Input value={form.handle} onChange={(e) => setForm((p) => ({ ...p, handle: e.target.value }))} placeholder="@handle" />
-          </div>
-        </div>
-        <Button
-          variant="secondary"
-          className="w-full"
-          onClick={() => mutation.mutate()}
-          disabled={!form.name || !form.handle || mutation.isPending}
-          loading={mutation.isPending}
-        >
-          <Plus className="h-4 w-4" /> Add competitor
-        </Button>
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-[var(--color-text)] font-bold" style={{ fontSize: '22px' }}>
+          Tell us about your business
+        </h2>
+        <p className="mt-1 text-[var(--color-text-3)] text-sm">
+          Takes 30 seconds. We'll research the rest automatically.
+        </p>
       </div>
 
-      {added.length > 0 && (
+      <div className="space-y-4">
+        {/* Name */}
         <div className="space-y-1.5">
-          {added.map((a) => (
-            <div key={a} className="flex items-center gap-2 rounded bg-surface-2 px-3 py-2 text-sm">
-              <CheckCircle2 className="h-4 w-4 text-success" />
-              <span className="text-[var(--color-text-3)]">{a}</span>
-            </div>
-          ))}
+          <Label htmlFor="orgName">Business name <span className="text-[var(--color-danger)]">*</span></Label>
+          <Input
+            id="orgName"
+            placeholder="e.g. Aayu Clinic"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
         </div>
-      )}
 
-      <Button className="w-full" onClick={onNext}>
-        {added.length > 0 ? 'Continue' : 'Skip for now'} <ChevronRight className="h-4 w-4" />
+        {/* Industry */}
+        <div className="space-y-1.5">
+          <Label>Industry <span className="text-[var(--color-danger)]">*</span></Label>
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setIndustryOpen((v) => !v)}
+              className={cn(
+                'flex h-9 w-full items-center justify-between rounded px-3 text-sm',
+                'border border-[var(--color-border-2)] bg-[var(--color-surface)]',
+                'text-left transition-colors',
+                industryOpen && 'border-[var(--color-accent)] shadow-[var(--shadow-accent)]',
+                !industry && 'text-[var(--color-text-4)]',
+              )}
+            >
+              {industry || 'Select your industry'}
+              <ChevronDown className={cn('h-4 w-4 text-[var(--color-text-4)] transition-transform', industryOpen && 'rotate-180')} />
+            </button>
+            {industryOpen && (
+              <div className="absolute z-50 mt-1 w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] shadow-[var(--shadow-lg)]">
+                <div className="p-2 border-b border-[var(--color-border)]">
+                  <Input
+                    placeholder="Search industry..."
+                    value={industrySearch}
+                    onChange={(e) => setIndustrySearch(e.target.value)}
+                    autoFocus
+                  />
+                </div>
+                <div className="max-h-52 overflow-y-auto py-1">
+                  {filteredIndustries.map((ind) => (
+                    <button
+                      key={ind}
+                      type="button"
+                      onClick={() => { setIndustry(ind); setIndustryOpen(false); setIndustrySearch('') }}
+                      className={cn(
+                        'flex w-full items-center gap-2 px-3 py-2 text-sm text-left',
+                        'hover:bg-[var(--color-surface-2)] transition-colors',
+                        industry === ind && 'text-[var(--color-accent)] font-medium',
+                      )}
+                    >
+                      {industry === ind && <Check className="h-3.5 w-3.5 shrink-0" />}
+                      {industry !== ind && <span className="w-3.5" />}
+                      {ind}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* City + Country */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="city">City <span className="text-[var(--color-danger)]">*</span></Label>
+            <Input
+              id="city"
+              placeholder="e.g. Hyderabad"
+              value={city}
+              onChange={(e) => setCity(e.target.value)}
+              className="h-9"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="country">Country</Label>
+            <Input
+              id="country"
+              placeholder="India"
+              value={country}
+              onChange={(e) => setCountry(e.target.value)}
+              className="h-9"
+            />
+          </div>
+        </div>
+
+        {/* Website */}
+        <div className="space-y-1.5">
+          <Label htmlFor="website">
+            Website URL{' '}
+            <span className="text-[10px] font-normal text-[var(--color-text-4)]">(optional but recommended)</span>
+          </Label>
+          <div className="relative">
+            <Globe className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--color-text-4)]" />
+            <Input
+              id="website"
+              placeholder="https://yourwebsite.com"
+              value={website}
+              onChange={(e) => setWebsite(e.target.value)}
+              className="pl-9"
+            />
+          </div>
+        </div>
+
+        {/* Business type */}
+        <div className="space-y-1.5">
+          <Label>Reach</Label>
+          <div className="grid grid-cols-4 gap-2">
+            {['LOCAL', 'REGIONAL', 'NATIONAL', 'GLOBAL'].map((type) => (
+              <button
+                key={type}
+                type="button"
+                onClick={() => setBusinessType(type)}
+                className={cn(
+                  'rounded px-3 py-2 text-xs font-medium border transition-all',
+                  businessType === type
+                    ? 'border-[var(--color-accent)] bg-[var(--color-accent-light)] text-[var(--color-accent-text)]'
+                    : 'border-[var(--color-border)] bg-transparent text-[var(--color-text-3)] hover:border-[var(--color-border-2)]',
+                )}
+              >
+                {type.charAt(0) + type.slice(1).toLowerCase()}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* Tip */}
+      <div className="rounded-lg border border-[var(--color-info-light)] bg-[var(--color-info-light)] px-4 py-3 flex gap-3 items-start">
+        <Sparkles className="h-4 w-4 text-[var(--color-info)] mt-0.5 shrink-0" />
+        <p className="text-xs text-[var(--color-info-text)]">
+          While you complete the next steps, we'll automatically research your business and find your top competitors.
+        </p>
+      </div>
+
+      <Button onClick={handleContinue} disabled={loading} className="w-full h-10 font-semibold">
+        {loading ? (
+          <><Loader2 className="h-4 w-4 animate-spin mr-2" /> Saving...</>
+        ) : (
+          <><ArrowRight className="h-4 w-4 mr-2" /> Continue</>
+        )}
       </Button>
     </div>
   )
 }
 
-// ── Step 4 — Choose platforms ─────────────────────────────────
+// ── Step 2: Social Media Connections ─────────────────────────
 
-function StepChoosePlatforms({ onFinish }: { onFinish: () => void }) {
-  const activeOrg = useOrgStore((s) => s.activeOrg)
-  const [selected, setSelected] = useState<string[]>(activeOrg?.activePlatforms ?? ['INSTAGRAM'])
+function Step2({ orgId, onNext }: { orgId: string; onNext: () => void }) {
+  const [scanResults, setScanResults] = useState<Record<string, ScanResult>>({})
+  const [urls, setUrls] = useState<Record<string, string>>({})
 
-  const toggle = (key: string) =>
-    setSelected((p) => p.includes(key) ? p.filter((k) => k !== key) : [...p, key])
+  const handleUrlChange = useCallback(
+    async (platform: string, url: string) => {
+      setUrls((prev) => ({ ...prev, [platform]: url }))
 
-  const mutation = useMutation({
-    mutationFn: () => orgsApi.update(activeOrg!.id, { activePlatforms: selected }),
-    onSuccess: () => onFinish(),
-    onError: () => onFinish(),
-  })
+      // Validate format
+      if (!url.trim() || url.length < 5) return
+
+      // Show scanning state
+      setScanResults((prev) => ({
+        ...prev,
+        [platform]: { platform, handle: '', name: '', followers: 0, profilePicUrl: '', lastPostDate: null, engagementRate: 0, status: 'scanning' },
+      }))
+
+      try {
+        // Trigger scan job
+        const res = await apiClient.post<{ scan: ScanResult }>(`/api/orgs/${orgId}/jobs/scan-profile`, {
+          platform,
+          profileUrl: url.trim(),
+        })
+        setScanResults((prev) => ({
+          ...prev,
+          [platform]: { ...res.scan, status: 'done' },
+        }))
+      } catch {
+        setScanResults((prev) => ({
+          ...prev,
+          [platform]: { ...(prev[platform] ?? {} as ScanResult), status: 'error' },
+        }))
+      }
+    },
+    [orgId],
+  )
+
+  const connectedCount = Object.values(scanResults).filter((r) => r.status === 'done').length
+
+  const handleContinue = () => {
+    if (connectedCount === 0) {
+      toast.error('Please connect at least one social media account.')
+      return
+    }
+    onNext()
+  }
 
   return (
-    <div className="space-y-4">
-      <p className="text-sm text-[var(--color-text-3)]">
-        Which platforms does your brand focus on? This customises your dashboard and reports.
-      </p>
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-[var(--color-text)] font-bold" style={{ fontSize: '22px' }}>
+          Connect your social pages
+        </h2>
+        <p className="mt-1 text-[var(--color-text-3)] text-sm">
+          Just paste the URL. No passwords needed — we use public data.
+        </p>
+      </div>
 
-      <div className="space-y-2">
-        {PLATFORMS.map((p) => {
-          const active = selected.includes(p.key)
+      <div className="space-y-3">
+        {PLATFORMS_CONFIG.map((p) => {
+          const Icon = p.icon
+          const result = scanResults[p.key]
+          const url = urls[p.key] ?? ''
+
           return (
-            <button
-              key={p.key}
-              onClick={() => toggle(p.key)}
-              className={cn(
-                'w-full flex items-center gap-3 rounded-lg border px-4 py-3 text-left transition-colors',
-                active
-                  ? 'border-accent bg-accent/5'
-                  : 'border-brand-border hover:bg-surface-2',
+            <div key={p.key} className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden">
+              <div className="flex items-center gap-3 px-4 py-3">
+                <div
+                  className="flex h-8 w-8 items-center justify-center rounded"
+                  style={{ background: `${p.color}1A` }}
+                >
+                  <Icon className="h-4 w-4" style={{ color: p.color }} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-[var(--color-text)]">{p.label}</p>
+                  <p className="text-[10px] text-[var(--color-text-4)]">{p.example}</p>
+                </div>
+                {result?.status === 'done' && (
+                  <CheckCircle2 className="h-5 w-5 text-[var(--color-success)] shrink-0" />
+                )}
+              </div>
+
+              <div className="px-4 pb-3">
+                <div className="relative">
+                  <Input
+                    placeholder={p.example}
+                    value={url}
+                    onChange={(e) => handleUrlChange(p.key, e.target.value)}
+                    className="pr-10 text-sm"
+                  />
+                  {result?.status === 'scanning' && (
+                    <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-[var(--color-accent)]" />
+                  )}
+                  {result?.status === 'done' && (
+                    <Check className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-[var(--color-success)]" />
+                  )}
+                </div>
+              </div>
+
+              {/* Live preview card */}
+              {result?.status === 'done' && (
+                <div className="mx-4 mb-3 rounded-lg bg-[var(--color-surface-2)] px-3 py-2.5 flex items-center gap-3">
+                  {result.profilePicUrl ? (
+                    <img src={result.profilePicUrl} alt="" className="h-10 w-10 rounded-full object-cover" />
+                  ) : (
+                    <div className="h-10 w-10 rounded-full flex items-center justify-center text-white text-xs font-bold" style={{ backgroundColor: p.color }}>
+                      {(result.name || result.handle).charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-[var(--color-text)] truncate">{result.name || `@${result.handle}`}</p>
+                    <p className="text-xs text-[var(--color-text-3)]">
+                      {result.followers.toLocaleString()} followers
+                      {result.engagementRate > 0 && ` · ${result.engagementRate.toFixed(1)}% engagement`}
+                    </p>
+                  </div>
+                  <Badge variant="outline" className="text-[var(--color-success)] border-[var(--color-success)] text-[10px]">
+                    Connected ✓
+                  </Badge>
+                </div>
               )}
-            >
-              <div className="h-3 w-3 rounded-full" style={{ background: p.color }} />
-              <span className="text-sm font-medium flex-1">{p.label}</span>
-              {active && <CheckCircle2 className="h-4 w-4 text-accent" />}
-            </button>
+
+              {result?.status === 'error' && (
+                <div className="mx-4 mb-3 rounded-lg bg-[var(--color-danger-light)] px-3 py-2 text-xs text-[var(--color-danger-text)]">
+                  Couldn't scan this profile. Check the URL format and try again.
+                </div>
+              )}
+            </div>
           )
         })}
       </div>
 
-      <Button
-        className="w-full"
-        onClick={() => mutation.mutate()}
-        disabled={selected.length === 0 || mutation.isPending}
-        loading={mutation.isPending}
-      >
-        Finish setup <CheckCircle2 className="h-4 w-4" />
+      <div className="flex items-center justify-between pt-2">
+        <p className="text-xs text-[var(--color-text-4)]">
+          {connectedCount} of {PLATFORMS_CONFIG.length} connected · minimum 1 required
+        </p>
+        <Button onClick={handleContinue} disabled={connectedCount === 0} className="gap-2">
+          Continue <ArrowRight className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+// ── Step 3: Confirm Auto-Discovered Data ──────────────────────
+
+function Step3({ orgId, onNext }: { orgId: string; onNext: () => void }) {
+  const [confirmedCompetitors, setConfirmedCompetitors] = useState<Set<string>>(new Set())
+  const [dismissedCompetitors, setDismissedCompetitors] = useState<Set<string>>(new Set())
+
+  // Poll for intelligence data (job may still be running)
+  const { data: intelligence, isLoading: intelLoading } = useQuery({
+    queryKey: ['org-intelligence', orgId],
+    queryFn: () => apiClient.get<OrgIntelligenceData>(`/api/orgs/${orgId}/intelligence`),
+    refetchInterval: 3000,
+    refetchIntervalInBackground: false,
+  })
+
+  const { data: competitors, isLoading: compLoading } = useQuery({
+    queryKey: ['competitors', orgId],
+    queryFn: () => apiClient.get<DiscoveredCompetitor[]>(`/api/orgs/${orgId}/competitors`),
+    refetchInterval: 3000,
+    refetchIntervalInBackground: false,
+  })
+
+  const handleConfirm = async (id: string) => {
+    setConfirmedCompetitors((prev) => new Set([...prev, id]))
+    setDismissedCompetitors((prev) => { const s = new Set(prev); s.delete(id); return s })
+    await apiClient.patch(`/api/competitors/${id}`, { status: 'CONFIRMED' }).catch(() => {})
+  }
+
+  const handleDismiss = async (id: string) => {
+    setDismissedCompetitors((prev) => new Set([...prev, id]))
+    setConfirmedCompetitors((prev) => { const s = new Set(prev); s.delete(id); return s })
+    await apiClient.patch(`/api/competitors/${id}`, { status: 'DISMISSED' }).catch(() => {})
+  }
+
+  const visibleCompetitors = (competitors ?? []).filter((c) => !dismissedCompetitors.has(c.id))
+  const confirmedCount = visibleCompetitors.filter((c) => confirmedCompetitors.has(c.id) || c.status === 'CONFIRMED').length
+
+  const isLoading = intelLoading || compLoading
+  const hasIntelligence = !!intelligence
+  const hasCompetitors = (competitors?.length ?? 0) > 0
+
+  const canProceed = confirmedCount >= 3 || (hasCompetitors && confirmedCount >= (competitors?.length ?? 0))
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-[var(--color-text)] font-bold" style={{ fontSize: '22px' }}>
+          Confirm what we found
+        </h2>
+        <p className="mt-1 text-[var(--color-text-3)] text-sm">
+          Review and edit the data we auto-discovered about your business.
+        </p>
+      </div>
+
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        {/* Left: Business Intelligence */}
+        <div className="space-y-3">
+          <p className="text-xs font-bold uppercase tracking-widest text-[var(--color-text-4)]">What we found about you</p>
+
+          {isLoading && !hasIntelligence ? (
+            <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-6 flex flex-col items-center gap-3">
+              <Loader2 className="h-6 w-6 animate-spin text-[var(--color-accent)]" />
+              <p className="text-sm text-[var(--color-text-3)]">Researching your organization...</p>
+            </div>
+          ) : (
+            <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] divide-y divide-[var(--color-border)]">
+              {intelligence?.aiDiagnosis?.description && (
+                <div className="p-4">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-4)] mb-1">Business Description</p>
+                  <p className="text-sm text-[var(--color-text-2)]">{intelligence.aiDiagnosis.description}</p>
+                </div>
+              )}
+              {intelligence?.googlePlacesData?.formattedAddress && (
+                <div className="px-4 py-3 flex items-start gap-2">
+                  <MapPin className="h-4 w-4 text-[var(--color-text-4)] mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-4)] mb-0.5">Address</p>
+                    <p className="text-sm text-[var(--color-text-2)]">{intelligence.googlePlacesData.formattedAddress}</p>
+                  </div>
+                </div>
+              )}
+              {intelligence?.googlePlacesData?.rating !== undefined && (
+                <div className="px-4 py-3 flex items-center gap-2">
+                  <Star className="h-4 w-4 text-[var(--color-warning)] shrink-0" />
+                  <div>
+                    <span className="text-sm font-semibold text-[var(--color-text)]">
+                      {intelligence.googlePlacesData.rating?.toFixed(1)}
+                    </span>
+                    <span className="text-xs text-[var(--color-text-3)] ml-1">
+                      ({intelligence.googlePlacesData.userRatingsTotal?.toLocaleString()} reviews)
+                    </span>
+                  </div>
+                </div>
+              )}
+              {(intelligence?.detectedKeywords?.length ?? 0) > 0 && (
+                <div className="px-4 py-3">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-4)] mb-2">Detected keywords</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {intelligence!.detectedKeywords.slice(0, 8).map((kw) => (
+                      <Badge key={kw} variant="secondary" className="text-[10px]">{kw}</Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {!hasIntelligence && (
+                <div className="p-4 text-sm text-[var(--color-text-3)]">
+                  Intelligence data loading… check back in a moment.
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Right: Competitors */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-xs font-bold uppercase tracking-widest text-[var(--color-text-4)]">
+              Your competitors we found
+            </p>
+            <Badge variant="outline" className="text-[10px]">
+              {confirmedCount} confirmed · need 3
+            </Badge>
+          </div>
+
+          {compLoading && !hasCompetitors ? (
+            <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-6 flex flex-col items-center gap-3">
+              <Loader2 className="h-6 w-6 animate-spin text-[var(--color-accent)]" />
+              <p className="text-sm text-[var(--color-text-3)]">Discovering competitors...</p>
+            </div>
+          ) : (
+            <div className="space-y-2 max-h-80 overflow-y-auto">
+              {visibleCompetitors.map((comp) => {
+                const isConfirmed = confirmedCompetitors.has(comp.id) || comp.status === 'CONFIRMED'
+                return (
+                  <div
+                    key={comp.id}
+                    className={cn(
+                      'rounded-lg border p-3 flex items-start gap-3 transition-all',
+                      isConfirmed
+                        ? 'border-[var(--color-success)] bg-[var(--color-success-light)]'
+                        : 'border-[var(--color-border)] bg-[var(--color-surface)]',
+                    )}
+                  >
+                    <div className="h-9 w-9 rounded-lg bg-[var(--color-surface-2)] flex items-center justify-center text-xs font-bold text-[var(--color-text-3)] shrink-0">
+                      {comp.businessName.charAt(0).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-[var(--color-text)] truncate">{comp.businessName}</p>
+                      <p className="text-[10px] text-[var(--color-text-4)] truncate">{comp.discoveryReason}</p>
+                      <div className="flex items-center gap-1 mt-1">
+                        <Badge variant="outline" className="text-[10px] px-1.5">
+                          {comp.platform.toLowerCase()}
+                        </Badge>
+                        <span className="text-[10px] text-[var(--color-text-4)]">
+                          Score: {comp.relevanceScore}/100
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex gap-1 shrink-0">
+                      <button
+                        onClick={() => handleConfirm(comp.id)}
+                        className={cn(
+                          'flex h-7 w-7 items-center justify-center rounded transition-all',
+                          isConfirmed
+                            ? 'bg-[var(--color-success)] text-white'
+                            : 'bg-[var(--color-surface-2)] text-[var(--color-text-3)] hover:bg-[var(--color-success-light)] hover:text-[var(--color-success)]',
+                        )}
+                        title="Confirm competitor"
+                      >
+                        <Check className="h-3.5 w-3.5" />
+                      </button>
+                      <button
+                        onClick={() => handleDismiss(comp.id)}
+                        className="flex h-7 w-7 items-center justify-center rounded bg-[var(--color-surface-2)] text-[var(--color-text-3)] hover:bg-[var(--color-danger-light)] hover:text-[var(--color-danger)] transition-all"
+                        title="Dismiss"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                )
+              })}
+              {!compLoading && visibleCompetitors.length === 0 && (
+                <div className="rounded-lg border border-[var(--color-border)] p-6 text-center">
+                  <Users className="h-8 w-8 text-[var(--color-text-4)] mx-auto mb-2" />
+                  <p className="text-sm text-[var(--color-text-3)]">No competitors discovered yet.</p>
+                  <p className="text-xs text-[var(--color-text-4)] mt-1">Discovery is still running — check back in a moment.</p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between pt-2">
+        <p className="text-xs text-[var(--color-text-4)]">
+          {canProceed ? '✓ Ready to continue' : `Confirm at least 3 competitors to continue`}
+        </p>
+        <Button onClick={onNext} disabled={!canProceed} className="gap-2">
+          Continue <ArrowRight className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  )
+}
+
+// ── Step 4: Preferences + Launch ──────────────────────────────
+
+function Step4({ orgId }: { orgId: string }) {
+  const router = useRouter()
+  const [platforms, setPlatforms] = useState<Set<string>>(new Set(['INSTAGRAM', 'FACEBOOK', 'YOUTUBE']))
+  const [language, setLanguage]   = useState('English')
+  const [notifications, setNotifications] = useState(true)
+  const [launched, setLaunched]   = useState(false)
+  const [jobProgress, setJobProgress] = useState<Record<string, JobProgress>>({})
+  const eventSourceRef = useRef<EventSource | null>(null)
+
+  const PROGRESS_STEPS = [
+    { key: 'org-intelligence',    label: 'Organization profile built' },
+    { key: 'competitor-discovery', label: 'Competitors discovered' },
+    { key: 'seo-keywords',        label: 'SEO opportunities found' },
+    { key: 'content-strategy',    label: 'Content strategy built' },
+    { key: 'org-summary',         label: 'Dashboard prepared' },
+  ]
+
+  const handleLaunch = async () => {
+    setLaunched(true)
+
+    // Update active platforms
+    await orgsApi.update(orgId, {
+      activePlatforms: [...platforms],
+      language,
+    }).catch(() => {})
+
+    // Trigger final 4 jobs
+    await Promise.allSettled([
+      apiClient.post(`/api/orgs/${orgId}/jobs/seo-keywords`),
+      apiClient.post(`/api/orgs/${orgId}/jobs/content-strategy`),
+      apiClient.post(`/api/orgs/${orgId}/jobs/org-summary`),
+    ])
+
+    // Connect SSE for live progress
+    const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000'
+    const token = typeof window !== 'undefined' ? localStorage.getItem('sp_token') : null
+    const es = new EventSource(`${apiUrl}/api/progress/${orgId}${token ? `?token=${token}` : ''}`)
+    eventSourceRef.current = es
+
+    es.onmessage = (event: MessageEvent<string>) => {
+      try {
+        const data = JSON.parse(event.data) as JobProgress & { step: string }
+        if (data.step && data.step !== 'connected') {
+          setJobProgress((prev) => ({
+            ...prev,
+            [data.step]: { step: data.step, status: data.status, message: data.message },
+          }))
+        }
+      } catch {
+        // Ignore parse errors
+      }
+    }
+
+    es.onerror = () => es.close()
+  }
+
+  // Auto-redirect when org-summary is done
+  useEffect(() => {
+    const summary = jobProgress['org-summary']
+    if (summary?.status === 'done') {
+      eventSourceRef.current?.close()
+      setTimeout(() => router.push('/summary'), 1200)
+    }
+  }, [jobProgress, router])
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => { eventSourceRef.current?.close() }
+  }, [])
+
+  const doneCount = PROGRESS_STEPS.filter((s) => jobProgress[s.key]?.status === 'done').length
+  const allDone = doneCount === PROGRESS_STEPS.length
+
+  if (launched) {
+    return (
+      <div className="space-y-6">
+        <div className="text-center">
+          <div className="inline-flex h-14 w-14 items-center justify-center rounded-full bg-[var(--color-accent-light)] mb-4">
+            <Sparkles className="h-7 w-7 text-[var(--color-accent)]" />
+          </div>
+          <h2 className="text-[var(--color-text)] font-bold mb-1" style={{ fontSize: '22px' }}>
+            {allDone ? 'Your dashboard is ready! 🎉' : 'Preparing your dashboard...'}
+          </h2>
+          <p className="text-sm text-[var(--color-text-3)]">
+            {allDone ? 'Redirecting you now...' : 'We\'re setting everything up. This takes about 30 seconds.'}
+          </p>
+        </div>
+
+        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] divide-y divide-[var(--color-border)] overflow-hidden">
+          {PROGRESS_STEPS.map((s) => {
+            const progress = jobProgress[s.key]
+            const status = progress?.status ?? 'pending'
+            return (
+              <div key={s.key} className="flex items-center gap-3 px-4 py-3">
+                <div className="h-6 w-6 shrink-0 flex items-center justify-center">
+                  {status === 'done' && <CheckCircle2 className="h-5 w-5 text-[var(--color-success)]" />}
+                  {status === 'running' && <Loader2 className="h-5 w-5 animate-spin text-[var(--color-accent)]" />}
+                  {status === 'pending' && <div className="h-5 w-5 rounded-full border-2 border-[var(--color-border-2)]" />}
+                  {status === 'error' && <XCircle className="h-5 w-5 text-[var(--color-danger)]" />}
+                </div>
+                <div className="flex-1">
+                  <p className={cn('text-sm', status === 'done' ? 'text-[var(--color-text)]' : 'text-[var(--color-text-3)]')}>
+                    {s.label}
+                  </p>
+                  {progress?.message && status !== 'done' && (
+                    <p className="text-xs text-[var(--color-text-4)]">{progress.message}</p>
+                  )}
+                </div>
+              </div>
+            )
+          })}
+        </div>
+
+        <div className="h-1.5 rounded-full bg-[var(--color-surface-2)] overflow-hidden">
+          <div
+            className="h-full rounded-full bg-[var(--color-accent)] transition-all duration-500"
+            style={{ width: `${(doneCount / PROGRESS_STEPS.length) * 100}%` }}
+          />
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-[var(--color-text)] font-bold" style={{ fontSize: '22px' }}>
+          Almost there!
+        </h2>
+        <p className="mt-1 text-[var(--color-text-3)] text-sm">
+          Set your preferences and launch your personalized dashboard.
+        </p>
+      </div>
+
+      {/* Active platforms */}
+      <div className="space-y-2">
+        <Label>Active platforms</Label>
+        <div className="grid grid-cols-2 gap-2">
+          {PLATFORMS_CONFIG.slice(0, 4).map((p) => {
+            const Icon = p.icon
+            const active = platforms.has(p.key)
+            return (
+              <button
+                key={p.key}
+                type="button"
+                onClick={() => {
+                  setPlatforms((prev) => {
+                    const s = new Set(prev)
+                    if (s.has(p.key)) s.delete(p.key)
+                    else s.add(p.key)
+                    return s
+                  })
+                }}
+                className={cn(
+                  'flex items-center gap-2 rounded-lg border px-3 py-2.5 text-sm transition-all text-left',
+                  active
+                    ? 'border-[var(--color-accent)] bg-[var(--color-accent-light)]'
+                    : 'border-[var(--color-border)] bg-transparent',
+                )}
+              >
+                {active
+                  ? <ToggleRight className="h-4 w-4 text-[var(--color-accent)] shrink-0" />
+                  : <ToggleLeft  className="h-4 w-4 text-[var(--color-text-4)] shrink-0" />
+                }
+                <Icon className="h-4 w-4 shrink-0" style={{ color: active ? p.color : 'var(--color-text-4)' }} />
+                <span className={active ? 'text-[var(--color-accent-text)] font-medium' : 'text-[var(--color-text-3)]'}>
+                  {p.label}
+                </span>
+              </button>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* Language */}
+      <div className="space-y-2">
+        <Label>Content language</Label>
+        <div className="flex flex-wrap gap-2">
+          {LANGUAGES.map((lang) => (
+            <button
+              key={lang}
+              type="button"
+              onClick={() => setLanguage(lang)}
+              className={cn(
+                'rounded-full border px-3 py-1 text-xs font-medium transition-all',
+                language === lang
+                  ? 'border-[var(--color-accent)] bg-[var(--color-accent-light)] text-[var(--color-accent-text)]'
+                  : 'border-[var(--color-border)] text-[var(--color-text-3)] hover:border-[var(--color-border-2)]',
+              )}
+            >
+              {lang}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Notifications */}
+      <div className="flex items-center justify-between rounded-lg border border-[var(--color-border)] px-4 py-3">
+        <div className="flex items-center gap-3">
+          <Bell className="h-4 w-4 text-[var(--color-text-3)]" />
+          <div>
+            <p className="text-sm font-medium text-[var(--color-text)]">Daily brief notifications</p>
+            <p className="text-xs text-[var(--color-text-4)]">Get a morning summary every day at 7 AM</p>
+          </div>
+        </div>
+        <button
+          type="button"
+          onClick={() => setNotifications((v) => !v)}
+          className="shrink-0"
+        >
+          {notifications
+            ? <ToggleRight className="h-7 w-7 text-[var(--color-accent)]" />
+            : <ToggleLeft  className="h-7 w-7 text-[var(--color-text-4)]" />
+          }
+        </button>
+      </div>
+
+      <Button onClick={handleLaunch} className="w-full h-11 font-semibold text-base gap-2">
+        <Sparkles className="h-5 w-5" />
+        Launch my dashboard
       </Button>
     </div>
   )
 }
 
-// ── Main page ─────────────────────────────────────────────────
+// ── Main onboarding page ──────────────────────────────────────
 
-export default function OnboardingPage(): React.JSX.Element {
-  const router = useRouter()
+export default function OnboardingPage() {
   const [step, setStep] = useState(1)
+  const { activeOrg } = useOrgStore()
+  const orgId = activeOrg?.id ?? ''
 
-  const next = () => setStep((s) => Math.min(STEPS.length, s + 1))
-  const finish = () => router.replace('/')
+  if (!orgId) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="flex items-center gap-3 text-[var(--color-text-3)]">
+          <Loader2 className="h-5 w-5 animate-spin" />
+          <span>Loading your organization...</span>
+        </div>
+      </div>
+    )
+  }
 
   return (
-    <div className="w-full max-w-lg mx-auto">
-      {/* Progress steps */}
-      <div className="mb-8 flex items-center justify-between">
-        {STEPS.map((s, i) => (
-          <React.Fragment key={s.id}>
-            <div className="flex flex-col items-center gap-1.5">
-              <div className={cn(
-                'flex h-8 w-8 items-center justify-center rounded-full border-2 text-sm font-semibold transition-colors duration-200',
-                step > s.id
-                  ? 'border-success bg-success text-white'
-                  : step === s.id
-                  ? 'border-accent bg-accent text-white'
-                  : 'border-brand-border-2 bg-surface text-[var(--color-text-4)]',
-              )}>
-                {step > s.id ? <CheckCircle2 className="h-4 w-4" /> : s.id}
-              </div>
-              <span className={cn(
-                'hidden sm:block text-xs font-medium',
-                step === s.id ? 'text-accent' : 'text-[var(--color-text-4)]',
-              )}>
-                {s.label}
-              </span>
-            </div>
-            {i < STEPS.length - 1 && (
-              <div className={cn(
-                'h-px flex-1 mx-2 transition-colors duration-200',
-                step > s.id ? 'bg-success' : 'bg-brand-border',
-              )} />
-            )}
-          </React.Fragment>
-        ))}
+    <div className="flex min-h-screen flex-col items-center justify-start bg-[var(--color-bg)] px-4 py-12">
+      {/* Logo */}
+      <div className="mb-8 flex items-center gap-2">
+        <div className="h-8 w-8 rounded-lg bg-[var(--color-accent)] flex items-center justify-center">
+          <Sparkles className="h-4 w-4 text-white" />
+        </div>
+        <span className="text-lg font-bold text-[var(--color-text)]">SocialPulse</span>
       </div>
 
-      <Card>
-        <CardContent className="py-8 px-6 space-y-6">
-          <div>
-            <h2 className="text-lg font-semibold text-[var(--color-text)]">
-              {STEPS[step - 1]?.label}
-            </h2>
-            <p className="mt-1 text-sm text-[var(--color-text-4)]">
-              Step {step} of {STEPS.length}
-            </p>
-          </div>
+      <div className="w-full max-w-2xl">
+        <StepIndicator current={step} />
 
-          {step === 1 && <StepOrgDetails onNext={next} />}
-          {step === 2 && <StepConnectAccounts onNext={next} />}
-          {step === 3 && <StepCompetitors onNext={next} />}
-          {step === 4 && <StepChoosePlatforms onFinish={finish} />}
-        </CardContent>
-      </Card>
+        <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-8 shadow-[var(--shadow-lg)]">
+          {step === 1 && <Step1 orgId={orgId} onNext={() => setStep(2)} />}
+          {step === 2 && <Step2 orgId={orgId} onNext={() => setStep(3)} />}
+          {step === 3 && <Step3 orgId={orgId} onNext={() => setStep(4)} />}
+          {step === 4 && <Step4 orgId={orgId} />}
+        </div>
+      </div>
     </div>
   )
 }

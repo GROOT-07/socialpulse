@@ -33,6 +33,25 @@ function parseJSON<T>(text: string): T {
   return JSON.parse(raw.trim()) as T
 }
 
+/**
+ * Generic completion — for services that build their own prompts.
+ * Used by CompetitorDiscoveryService, SEOIntelligenceService, and onboarding workers.
+ */
+export const aiService = {
+  async complete(prompt: string, maxTokens = 1024): Promise<string> {
+    const client = getClient()
+    const msg = await client.messages.create({
+      model: MODEL,
+      max_tokens: maxTokens,
+      system: 'You are a helpful expert assistant. Respond concisely and accurately. When asked for JSON, return only valid JSON with no markdown fences.',
+      messages: [{ role: 'user', content: prompt }],
+    })
+    const block = msg.content[0]
+    if (!block || block.type !== 'text') throw new Error('No text response from Claude')
+    return block.text
+  },
+}
+
 // ── 1. Gap Analysis ───────────────────────────────────────────
 
 export interface GapAnalysisResult {
@@ -307,4 +326,292 @@ Return ONLY the JSON.`
 
   const text = await ask(prompt)
   return parseJSON<GeneratedBrandVoice>(text)
+}
+
+// ── 7. Post Generator (3 variations) ─────────────────────────
+
+export interface GeneratedPost {
+  variation: number
+  caption: string
+  hashtags: string[]
+  callToAction: string
+  seoScore: number
+  tone: string
+  estimatedReach: string
+}
+
+export async function generateSocialPosts(
+  orgId: string,
+  params: { topic: string; platform: string; tone?: string; keywords?: string[] },
+): Promise<GeneratedPost[]> {
+  const [org, voice, pillars] = await Promise.all([
+    prisma.organization.findUnique({ where: { id: orgId } }),
+    prisma.brandVoice.findFirst({ where: { orgId } }),
+    prisma.contentPillar.findMany({ where: { orgId }, take: 3 }),
+  ])
+  if (!org) throw new Error('Organization not found')
+
+  const prompt = `
+Generate 3 distinct social media post variations for "${org.name}" (${org.industry}) for ${params.platform}.
+
+Topic: ${params.topic}
+Tone: ${params.tone ?? (voice?.adjectives as string[] | null)?.[0] ?? 'professional'}
+Content pillars: ${pillars.map((p) => p.name).join(', ')}
+Keywords to include: ${(params.keywords ?? []).join(', ')}
+City: ${org.city ?? 'India'}
+
+Return JSON array of 3 objects:
+[{"variation":1,"caption":"full post text","hashtags":["#tag1","#tag2"],"callToAction":"Follow for more tips!","seoScore":78,"tone":"inspirational","estimatedReach":"2K-5K"},...]
+
+Return ONLY the JSON array.`
+
+  const text = await ask(prompt)
+  return parseJSON<GeneratedPost[]>(text)
+}
+
+// ── 8. Video / Reel Script Generator ─────────────────────────
+
+export interface VideoScript {
+  hook: string
+  sections: Array<{ timestamp: string; voiceover: string; visualSuggestion: string }>
+  callToAction: string
+  duration: string
+  contentType: 'REEL' | 'YOUTUBE_SHORT' | 'YOUTUBE_VIDEO'
+  hashtags: string[]
+}
+
+export async function generateVideoScript(
+  orgId: string,
+  params: { topic: string; platform: string; duration?: string },
+): Promise<VideoScript> {
+  const org = await prisma.organization.findUnique({ where: { id: orgId } })
+  if (!org) throw new Error('Organization not found')
+
+  const isShort = params.platform === 'INSTAGRAM' || params.duration === '60s'
+  const prompt = `
+Write a ${isShort ? '30-60 second short-form' : '3-5 minute YouTube'} video script for "${org.name}" (${org.industry}).
+
+Topic: ${params.topic}
+Platform: ${params.platform}
+Target city/region: ${org.city ?? 'India'}
+
+Return JSON:
+{"hook":"Opening line (grab attention in 3s)","sections":[{"timestamp":"0:00-0:05","voiceover":"exact words to say","visualSuggestion":"what to show on screen"},...],"callToAction":"Subscribe and follow","duration":"${params.duration ?? '45s'}","contentType":"${isShort ? 'REEL' : 'YOUTUBE_VIDEO'}","hashtags":["#tag1"]}
+
+Return ONLY the JSON.`
+
+  const text = await ask(prompt, 'You are an expert video script writer for social media. Write punchy, engaging scripts optimized for the platform.')
+  return parseJSON<VideoScript>(text)
+}
+
+// ── 9. Blog / Article Writer ──────────────────────────────────
+
+export interface BlogOutline {
+  title: string
+  metaDescription: string
+  slug: string
+  sections: Array<{ heading: string; subpoints: string[]; estimatedWords: number }>
+  targetKeywords: string[]
+  estimatedReadTime: string
+}
+
+export interface BlogDraft {
+  title: string
+  metaDescription: string
+  slug: string
+  content: string
+  wordCount: number
+  targetKeywords: string[]
+  readingTime: string
+}
+
+export async function generateBlogOutline(
+  orgId: string,
+  params: { topic: string; keywords?: string[] },
+): Promise<BlogOutline> {
+  const org = await prisma.organization.findUnique({ where: { id: orgId } })
+  if (!org) throw new Error('Organization not found')
+
+  const prompt = `
+Create a detailed SEO blog outline for "${org.name}" (${org.industry}).
+
+Topic: ${params.topic}
+Target keywords: ${(params.keywords ?? []).join(', ')}
+City/region: ${org.city ?? 'India'}
+
+Return JSON:
+{"title":"SEO-optimized title","metaDescription":"150-160 char meta","slug":"url-friendly-slug","sections":[{"heading":"H2 heading","subpoints":["point 1","point 2"],"estimatedWords":200},...],"targetKeywords":["kw1","kw2"],"estimatedReadTime":"5 min read"}
+
+Return ONLY the JSON.`
+
+  const text = await ask(prompt)
+  return parseJSON<BlogOutline>(text)
+}
+
+export async function generateBlogDraft(
+  orgId: string,
+  params: { outline: BlogOutline },
+): Promise<BlogDraft> {
+  const org = await prisma.organization.findUnique({ where: { id: orgId } })
+  if (!org) throw new Error('Organization not found')
+
+  const prompt = `
+Write a complete SEO-optimized blog post for "${org.name}" (${org.industry}).
+
+Title: ${params.outline.title}
+Target keywords: ${params.outline.targetKeywords.join(', ')}
+Outline:
+${params.outline.sections.map((s, i) => `${i + 1}. ${s.heading}\n   - ${s.subpoints.join('\n   - ')}`).join('\n')}
+
+Write the full article (~${params.outline.sections.reduce((a, s) => a + s.estimatedWords, 0)} words).
+Use markdown formatting with H2/H3 headings.
+Naturally weave in keywords without stuffing.
+
+Return JSON:
+{"title":"${params.outline.title}","metaDescription":"${params.outline.metaDescription}","slug":"${params.outline.slug}","content":"full markdown content here","wordCount":1200,"targetKeywords":["kw1"],"readingTime":"5 min read"}
+
+Return ONLY the JSON.`
+
+  const text = await ask(prompt, 'You are an expert SEO content writer. Write engaging, well-structured blog posts optimized for search engines.')
+  return parseJSON<BlogDraft>(text)
+}
+
+// ── 10. AI Diagnosis (Org Summary) ───────────────────────────
+// (implemented in onboarding.worker.ts orgSummaryWorker — exposed via /summary page)
+
+// ── 11. Smart Calendar Generator ─────────────────────────────
+
+export interface CalendarPost {
+  date: string
+  platform: string
+  topic: string
+  type: string
+  caption: string
+  hashtags: string[]
+  specialDayRef: string | null
+}
+
+export async function generateSmartCalendar(
+  orgId: string,
+  params: { month: number; year: number; platforms?: string[] },
+): Promise<CalendarPost[]> {
+  const [org, pillars, specialDays] = await Promise.all([
+    prisma.organization.findUnique({ where: { id: orgId } }),
+    prisma.contentPillar.findMany({ where: { orgId }, take: 5 }),
+    prisma.specialDay.findMany({
+      where: {
+        date: {
+          gte: new Date(params.year, params.month - 1, 1),
+          lt: new Date(params.year, params.month, 1),
+        },
+      },
+      orderBy: { date: 'asc' },
+    }),
+  ])
+  if (!org) throw new Error('Organization not found')
+
+  const platforms = params.platforms ?? org.activePlatforms
+  const daysInMonth = new Date(params.year, params.month, 0).getDate()
+
+  const prompt = `
+Generate a 30-day social media content calendar for "${org.name}" (${org.industry}).
+
+Month: ${new Date(params.year, params.month - 1).toLocaleString('en', { month: 'long' })} ${params.year}
+Platforms: ${platforms.join(', ')}
+Content pillars: ${pillars.map((p) => p.name).join(', ')}
+Special days this month: ${specialDays.map((d) => `${d.date.toISOString().split('T')[0]}: ${d.name}`).join(', ')}
+Days in month: ${daysInMonth}
+Post frequency: 1 post per day per active platform
+
+Return JSON array. For each post:
+{"date":"YYYY-MM-DD","platform":"INSTAGRAM","topic":"topic title","type":"CAROUSEL|REEL|STORY|POST|VIDEO","caption":"full caption text","hashtags":["#tag"],"specialDayRef":"Diwali|null"}
+
+Return ONLY the JSON array.`
+
+  const text = await ask(prompt, 'You are a social media content calendar expert. Create varied, engaging content that aligns with the brand.')
+  return parseJSON<CalendarPost[]>(text)
+}
+
+// ── 12. SEO Content Brief ─────────────────────────────────────
+
+export interface SEOBrief {
+  keyword: string
+  searchIntent: string
+  contentType: string
+  titleOptions: string[]
+  outline: Array<{ heading: string; notes: string }>
+  competitorInsights: Array<{ url: string; strength: string }>
+  internalLinkOpportunities: string[]
+  estimatedWordCount: number
+  targetFeaturedSnippet: boolean
+}
+
+export async function generateSEOBrief(
+  orgId: string,
+  params: { keyword: string; competitors?: string[] },
+): Promise<SEOBrief> {
+  const org = await prisma.organization.findUnique({ where: { id: orgId } })
+  if (!org) throw new Error('Organization not found')
+
+  const prompt = `
+Create a detailed SEO content brief for "${org.name}" (${org.industry}).
+
+Target keyword: ${params.keyword}
+Business city: ${org.city ?? 'India'}
+Competitors: ${(params.competitors ?? []).join(', ')}
+
+Return JSON:
+{"keyword":"${params.keyword}","searchIntent":"informational|transactional|navigational","contentType":"blog|landing page|FAQ","titleOptions":["Title A","Title B","Title C"],"outline":[{"heading":"H2 section","notes":"what to cover"}],"competitorInsights":[{"url":"competitor.com","strength":"what they do well"}],"internalLinkOpportunities":["link to page X"],"estimatedWordCount":1500,"targetFeaturedSnippet":true}
+
+Return ONLY the JSON.`
+
+  const text = await ask(prompt)
+  return parseJSON<SEOBrief>(text)
+}
+
+// ── 13. Trending Content Ideas ────────────────────────────────
+
+export interface TrendingIdea {
+  trend: string
+  platform: string
+  contentAngle: string
+  captionHook: string
+  hashtags: string[]
+  urgency: 'HIGH' | 'MEDIUM' | 'LOW'
+  estimatedViralScore: number
+}
+
+export async function generateTrendingIdeas(
+  orgId: string,
+  params: { platform?: string; count?: number },
+): Promise<TrendingIdea[]> {
+  const [org, trendingTopics] = await Promise.all([
+    prisma.organization.findUnique({ where: { id: orgId } }),
+    prisma.trendingTopic.findMany({
+      where: { ...(params.platform ? { platform: params.platform } : {}) },
+      orderBy: { trendScore: 'desc' },
+      take: 20,
+    }),
+  ])
+  if (!org) throw new Error('Organization not found')
+
+  const count = params.count ?? 10
+  const platform = params.platform ?? 'ALL'
+
+  const prompt = `
+Generate ${count} trending content ideas for "${org.name}" (${org.industry}) targeting ${platform} platform.
+
+Current trending topics/hashtags: ${trendingTopics.map((t) => `${t.topic} (score: ${t.trendScore})`).join(', ')}
+City/region: ${org.city ?? 'India'}
+Industry: ${org.industry}
+
+For each idea, give a specific angle the business can use RIGHT NOW.
+
+Return JSON array:
+[{"trend":"current trend name","platform":"INSTAGRAM","contentAngle":"specific angle for this business","captionHook":"First line of caption","hashtags":["#tag1","#tag2"],"urgency":"HIGH|MEDIUM|LOW","estimatedViralScore":82},...]
+
+Return ONLY the JSON array.`
+
+  const text = await ask(prompt, 'You are a viral content strategist. Identify trends and translate them into actionable content ideas for local businesses.')
+  return parseJSON<TrendingIdea[]>(text)
 }

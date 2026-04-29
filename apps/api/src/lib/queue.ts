@@ -40,6 +40,49 @@ export const competitorSyncQueue = makeQueue('competitor-sync', {
   removeOnFail: { count: 200 },
 })
 
+// ── V2 Onboarding Intelligence Queues ────────────────────────
+export const orgIntelligenceQueue = makeQueue('org-intelligence', {
+  attempts: 2,
+  backoff: { type: 'exponential', delay: 5000 },
+  removeOnComplete: { count: 50 },
+  removeOnFail: { count: 100 },
+})
+
+export const socialProfileScanQueue = makeQueue('social-profile-scan', {
+  attempts: 3,
+  backoff: { type: 'exponential', delay: 3000 },
+  removeOnComplete: { count: 100 },
+  removeOnFail: { count: 200 },
+})
+
+export const competitorDiscoveryQueue = makeQueue('competitor-discovery', {
+  attempts: 2,
+  backoff: { type: 'exponential', delay: 10000 },
+  removeOnComplete: { count: 50 },
+  removeOnFail: { count: 100 },
+})
+
+export const seoKeywordDiscoveryQueue = makeQueue('seo-keyword-discovery', {
+  attempts: 2,
+  backoff: { type: 'exponential', delay: 5000 },
+  removeOnComplete: { count: 50 },
+  removeOnFail: { count: 100 },
+})
+
+export const contentStrategyQueue = makeQueue('content-strategy-generation', {
+  attempts: 2,
+  backoff: { type: 'exponential', delay: 10000 },
+  removeOnComplete: { count: 50 },
+  removeOnFail: { count: 100 },
+})
+
+export const orgSummaryQueue = makeQueue('org-summary-generation', {
+  attempts: 2,
+  backoff: { type: 'exponential', delay: 10000 },
+  removeOnComplete: { count: 50 },
+  removeOnFail: { count: 100 },
+})
+
 // ── Job type definitions ──────────────────────────────────────
 export interface SyncMetricsJobData {
   orgId: string
@@ -56,6 +99,33 @@ export interface DailyBriefJobData {
 
 export interface CompetitorSyncJobData {
   competitorId: string
+}
+
+// V2 job data types
+export interface OrgIntelligenceJobData {
+  orgId: string
+}
+
+export interface SocialProfileScanJobData {
+  orgId: string
+  platform: string
+  profileUrl: string
+}
+
+export interface CompetitorDiscoveryJobData {
+  orgId: string
+}
+
+export interface SEOKeywordDiscoveryJobData {
+  orgId: string
+}
+
+export interface ContentStrategyJobData {
+  orgId: string
+}
+
+export interface OrgSummaryJobData {
+  orgId: string
 }
 
 // ── Schedule recurring jobs ───────────────────────────────────
@@ -84,5 +154,19 @@ export async function scheduleRecurringJobs(): Promise<void> {
     { name: 'generate-all-briefs', data: { orgId: 'ALL' } as DailyBriefJobData },
   )
 
-  console.info('✅ Recurring jobs scheduled')
+  // V2 — weekly competitor re-discovery
+  await competitorDiscoveryQueue.upsertJobScheduler(
+    'weekly-competitor-rediscovery',
+    { pattern: '0 9 * * 1' }, // Every Monday at 9 AM
+    { name: 'rediscover-all-orgs', data: { orgId: 'ALL' } as CompetitorDiscoveryJobData },
+  )
+
+  // V2 — weekly SEO rank refresh
+  await seoKeywordDiscoveryQueue.upsertJobScheduler(
+    'weekly-seo-rank-refresh',
+    { pattern: '0 10 * * 1' }, // Every Monday at 10 AM
+    { name: 'refresh-all-ranks', data: { orgId: 'ALL' } as SEOKeywordDiscoveryJobData },
+  )
+
+  console.info('✅ Recurring jobs scheduled (v2 included)')
 }

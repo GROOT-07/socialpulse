@@ -1,6 +1,8 @@
 import type { Response } from 'express'
 import type { AuthRequest } from '../middleware/auth'
 import { prisma } from '../lib/prisma'
+import bcrypt from 'bcryptjs'
+import crypto from 'crypto'
 
 function org(req: AuthRequest): string { return (req.headers['x-org-id'] as string) || '' }
 
@@ -55,4 +57,41 @@ export async function removeMember(req: AuthRequest, res: Response): Promise<voi
   const { userId } = req.params
   await prisma.orgMember.deleteMany({ where: { userId, orgId: org(req) } })
   res.json({ data: { removed: true } })
+}
+
+export async function inviteTeamMember(req: AuthRequest, res: Response): Promise<void> {
+  const { email, role = 'VIEWER' } = req.body as { email: string; role?: string }
+  if (!email) { res.status(400).json({ error: 'Bad request', message: 'email is required' }); return }
+
+  const orgId = org(req)
+
+  // Find or create the invited user
+  let user = await prisma.user.findUnique({ where: { email } })
+  if (!user) {
+    // Create a stub user with a random password — they can reset via forgot-password
+    const tempPassword = crypto.randomBytes(16).toString('hex')
+    const passwordHash = await bcrypt.hash(tempPassword, 12)
+    user = await prisma.user.create({ data: { email, passwordHash, role: 'VIEWER' } })
+  }
+
+  // Check if already a member
+  const existing = await prisma.orgMember.findUnique({ where: { orgId_userId: { orgId, userId: user.id } } })
+  if (existing) { res.status(409).json({ error: 'Conflict', message: 'User is already a member of this organization' }); return }
+
+  const member = await prisma.orgMember.create({
+    data: { orgId, userId: user.id, role: role as 'ORG_ADMIN' | 'VIEWER', acceptedAt: new Date() },
+    include: { user: { select: { id: true, email: true } } },
+  })
+
+  res.status(201).json({
+    data: {
+      member: {
+        id: member.id,
+        userId: member.userId,
+        role: member.role,
+        joinedAt: member.invitedAt.toISOString(),
+        user: { id: member.user.id, email: member.user.email },
+      },
+    },
+  })
 }

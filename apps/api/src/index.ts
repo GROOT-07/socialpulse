@@ -30,12 +30,15 @@ import auditRoutes from './routes/audit.routes'
 import briefRoutes from './routes/brief.routes'
 import settingsRoutes from './routes/settings.routes'
 import adminRoutes from './routes/admin.routes'
+import { progressRouter } from './routes/progress.routes'
+import specialDaysRoutes from './routes/specialdays.routes'
 import { errorHandler } from './middleware/errorHandler'
 import { scheduleRecurringJobs } from './lib/queue'
 import { createMetricsWorker } from './workers/metrics.worker'
 import { createTokenRefreshWorker } from './workers/tokenRefresh.worker'
 import { createCompetitorWorker } from './workers/competitor.worker'
 import { createBriefWorker } from './workers/brief.worker'
+import './workers/onboarding.worker' // Auto-registers all 6 onboarding workers
 
 const app: Application = express()
 const PORT = Number(process.env.PORT ?? 4000)
@@ -98,6 +101,8 @@ app.use('/api/audit', auditRoutes)
 app.use('/api/brief', briefRoutes)
 app.use('/api/settings', settingsRoutes)
 app.use('/api/admin', adminRoutes)
+app.use('/api/progress', progressRouter)
+app.use('/api/special-days', specialDaysRoutes)
 
 // ── 404 ───────────────────────────────────────────────────────
 app.use((_req, res) => {
