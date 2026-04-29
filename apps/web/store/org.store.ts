@@ -9,6 +9,8 @@ export interface ActiveOrg {
   brandColor: string | null
   industry: string
   activePlatforms: string[]
+  city?: string | null
+  country?: string | null
 }
 
 interface OrgState {

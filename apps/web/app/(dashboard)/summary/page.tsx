@@ -197,7 +197,7 @@ function completenessScore(account: SocialAccount): number {
 // ── Section 1: Business Identity Card ────────────────────────
 
 function BusinessIdentitySection({ org, intelligence, onRescan }: {
-  org: { name: string; industry: string; city: string | null; country: string | null; logoUrl: string | null; brandColor: string | null }
+  org: { name: string; industry: string; city?: string | null; country?: string | null; logoUrl: string | null; brandColor: string | null }
   intelligence: OrgIntelligence | null
   onRescan: () => void
 }) {
