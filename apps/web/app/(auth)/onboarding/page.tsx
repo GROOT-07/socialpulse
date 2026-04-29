@@ -13,10 +13,10 @@ import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import {
-  Building2, Globe, MapPin, ArrowRight, CheckCircle2, Loader2,
+  Globe, MapPin, ArrowRight, CheckCircle2, Loader2,
   Instagram, Facebook, Youtube, MessageCircle, Search,
-  ChevronDown, XCircle, Users, Star, RefreshCcw, Sparkles,
-  Check, X, Bell, Languages, ToggleLeft, ToggleRight,
+  ChevronDown, XCircle, Star, Sparkles,
+  Check, Bell, ToggleLeft, ToggleRight,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -68,19 +68,6 @@ interface ScanResult {
   lastPostDate: string | null
   engagementRate: number
   status: 'scanning' | 'done' | 'error'
-}
-
-interface DiscoveredCompetitor {
-  id: string
-  businessName: string
-  platform: string
-  handle: string
-  logoUrl: string | null
-  address: string | null
-  website: string | null
-  relevanceScore: number
-  discoveryReason: string
-  status: 'PENDING' | 'CONFIRMED' | 'DISMISSED'
 }
 
 interface OrgIntelligenceData {
@@ -488,216 +475,162 @@ function Step2({ orgId, onNext }: { orgId: string; onNext: () => void }) {
   )
 }
 
-// ── Step 3: Confirm Auto-Discovered Data ──────────────────────
+// ── Step 3: Your Business at a Glance ────────────────────────
 
 function Step3({ orgId, onNext }: { orgId: string; onNext: () => void }) {
-  const [confirmedCompetitors, setConfirmedCompetitors] = useState<Set<string>>(new Set())
-  const [dismissedCompetitors, setDismissedCompetitors] = useState<Set<string>>(new Set())
-  const [timedOut, setTimedOut] = useState(false)
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const { activeOrg } = useOrgStore()
+  const [showSkip, setShowSkip] = useState(false)
 
-  // 10-second timeout — if jobs haven't completed, allow skipping
+  // After 9 seconds, show "skip" nudge if data hasn't arrived yet
   useEffect(() => {
-    timeoutRef.current = setTimeout(() => setTimedOut(true), 10_000)
-    return () => { if (timeoutRef.current) clearTimeout(timeoutRef.current) }
+    const t = setTimeout(() => setShowSkip(true), 9_000)
+    return () => clearTimeout(t)
   }, [])
 
-  // Poll for intelligence data (job may still be running)
-  const { data: intelligence, isLoading: intelLoading } = useQuery({
+  // Poll until we get intelligence data, then stop
+  const { data: intelligence, isLoading } = useQuery({
     queryKey: ['org-intelligence', orgId],
     queryFn: () => apiClient.get<OrgIntelligenceData>(`/api/orgs/${orgId}/intelligence`),
-    refetchInterval: timedOut ? false : 3000,
+    refetchInterval: (query) => {
+      const d = query.state.data as OrgIntelligenceData | undefined
+      const hasContent = !!(
+        d?.aiDiagnosis?.description ||
+        d?.googlePlacesData?.formattedAddress ||
+        (d?.detectedKeywords?.length ?? 0) > 0
+      )
+      return hasContent ? false : 3_500
+    },
     refetchIntervalInBackground: false,
   })
 
-  const { data: competitors, isLoading: compLoading } = useQuery({
-    queryKey: ['competitors', orgId],
-    queryFn: () => apiClient.get<DiscoveredCompetitor[]>(`/api/orgs/${orgId}/competitors`),
-    refetchInterval: timedOut ? false : 3000,
-    refetchIntervalInBackground: false,
-  })
-
-  const handleConfirm = async (id: string) => {
-    setConfirmedCompetitors((prev) => { const s = new Set(prev); s.add(id); return s })
-    setDismissedCompetitors((prev) => { const s = new Set(prev); s.delete(id); return s })
-    await apiClient.patch(`/api/competitors/${id}`, { status: 'CONFIRMED' }).catch(() => {})
-  }
-
-  const handleDismiss = async (id: string) => {
-    setDismissedCompetitors((prev) => { const s = new Set(prev); s.add(id); return s })
-    setConfirmedCompetitors((prev) => { const s = new Set(prev); s.delete(id); return s })
-    await apiClient.patch(`/api/competitors/${id}`, { status: 'DISMISSED' }).catch(() => {})
-  }
-
-  const visibleCompetitors = (competitors ?? []).filter((c) => !dismissedCompetitors.has(c.id))
-  const confirmedCount = visibleCompetitors.filter((c) => confirmedCompetitors.has(c.id) || c.status === 'CONFIRMED').length
-
-  const isLoading = intelLoading || compLoading
-  const hasIntelligence = !!intelligence
-  const hasCompetitors = (competitors?.length ?? 0) > 0
-
-  // Always allow proceeding — competitor confirmation is helpful but not a hard blocker
-  const canProceed = true
+  const hasContent = !!(
+    intelligence?.aiDiagnosis?.description ||
+    intelligence?.googlePlacesData?.formattedAddress ||
+    (intelligence?.detectedKeywords?.length ?? 0) > 0 ||
+    intelligence?.googlePlacesData?.rating !== undefined
+  )
 
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-[var(--color-text)] font-bold" style={{ fontSize: '22px' }}>
-          Confirm what we found
+          Here's what we found
         </h2>
         <p className="mt-1 text-[var(--color-text-3)] text-sm">
-          Review and edit the data we auto-discovered about your business.
+          We researched your business automatically — review what we discovered.
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-        {/* Left: Business Intelligence */}
-        <div className="space-y-3">
-          <p className="text-xs font-bold uppercase tracking-widest text-[var(--color-text-4)]">What we found about you</p>
-
-          {isLoading && !hasIntelligence ? (
-            <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-6 flex flex-col items-center gap-3">
-              <Loader2 className="h-6 w-6 animate-spin text-[var(--color-accent)]" />
-              <p className="text-sm text-[var(--color-text-3)]">Researching your organization...</p>
-            </div>
-          ) : (
-            <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] divide-y divide-[var(--color-border)]">
-              {intelligence?.aiDiagnosis?.description && (
-                <div className="p-4">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-4)] mb-1">Business Description</p>
-                  <p className="text-sm text-[var(--color-text-2)]">{intelligence.aiDiagnosis.description}</p>
-                </div>
-              )}
-              {intelligence?.googlePlacesData?.formattedAddress && (
-                <div className="px-4 py-3 flex items-start gap-2">
-                  <MapPin className="h-4 w-4 text-[var(--color-text-4)] mt-0.5 shrink-0" />
-                  <div>
-                    <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-4)] mb-0.5">Address</p>
-                    <p className="text-sm text-[var(--color-text-2)]">{intelligence.googlePlacesData.formattedAddress}</p>
-                  </div>
-                </div>
-              )}
-              {intelligence?.googlePlacesData?.rating !== undefined && (
-                <div className="px-4 py-3 flex items-center gap-2">
-                  <Star className="h-4 w-4 text-[var(--color-warning)] shrink-0" />
-                  <div>
-                    <span className="text-sm font-semibold text-[var(--color-text)]">
-                      {intelligence.googlePlacesData.rating?.toFixed(1)}
-                    </span>
-                    <span className="text-xs text-[var(--color-text-3)] ml-1">
-                      ({intelligence.googlePlacesData.userRatingsTotal?.toLocaleString()} reviews)
-                    </span>
-                  </div>
-                </div>
-              )}
-              {(intelligence?.detectedKeywords?.length ?? 0) > 0 && (
-                <div className="px-4 py-3">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-4)] mb-2">Detected keywords</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {intelligence!.detectedKeywords.slice(0, 8).map((kw) => (
-                      <Badge key={kw} variant="outline" className="text-[10px]">{kw}</Badge>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {!hasIntelligence && (
-                <div className="p-4 text-sm text-[var(--color-text-3)]">
-                  Intelligence data loading… check back in a moment.
-                </div>
-              )}
+      {/* Intelligence card */}
+      {isLoading && !hasContent ? (
+        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-10 flex flex-col items-center gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-[var(--color-accent)]" />
+          <div className="text-center">
+            <p className="text-sm font-medium text-[var(--color-text-2)]">Researching your organization…</p>
+            <p className="text-xs text-[var(--color-text-4)] mt-1">Checking Google, scanning your web presence</p>
+          </div>
+          {showSkip && (
+            <div className="mt-2 rounded-lg border border-[var(--color-info-light)] bg-[var(--color-info-light)] px-4 py-2.5 text-xs text-[var(--color-info-text)] text-center max-w-xs">
+              Analysis is running in the background — your dashboard will be fully ready when you launch.
             </div>
           )}
         </div>
-
-        {/* Right: Competitors */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <p className="text-xs font-bold uppercase tracking-widest text-[var(--color-text-4)]">
-              Your competitors we found
-            </p>
-            <Badge variant="outline" className="text-[10px]">
-              {confirmedCount} confirmed · need 3
-            </Badge>
+      ) : (
+        <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] divide-y divide-[var(--color-border)] overflow-hidden">
+          {/* Business name / industry from org store as header */}
+          <div className="px-5 py-4 flex items-center gap-3 bg-[var(--color-surface-2)]">
+            <div className="h-10 w-10 rounded-lg bg-[var(--color-accent-light)] flex items-center justify-center shrink-0">
+              <span className="text-base font-bold text-[var(--color-accent)]">
+                {(activeOrg?.name ?? 'B').charAt(0).toUpperCase()}
+              </span>
+            </div>
+            <div>
+              <p className="text-sm font-semibold text-[var(--color-text)]">{activeOrg?.name}</p>
+              <p className="text-xs text-[var(--color-text-4)]">{activeOrg?.industry}</p>
+            </div>
+            <CheckCircle2 className="h-5 w-5 text-[var(--color-success)] ml-auto shrink-0" />
           </div>
 
-          {compLoading && !hasCompetitors ? (
-            <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-6 flex flex-col items-center gap-3">
-              <Loader2 className="h-6 w-6 animate-spin text-[var(--color-accent)]" />
-              <p className="text-sm text-[var(--color-text-3)]">Discovering competitors...</p>
+          {/* AI-generated description */}
+          {intelligence?.aiDiagnosis?.description && (
+            <div className="px-5 py-4">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-4)] mb-1.5">
+                Business Overview
+              </p>
+              <p className="text-sm text-[var(--color-text-2)] leading-relaxed">
+                {intelligence.aiDiagnosis.description}
+              </p>
             </div>
-          ) : (
-            <div className="space-y-2 max-h-80 overflow-y-auto">
-              {visibleCompetitors.map((comp) => {
-                const isConfirmed = confirmedCompetitors.has(comp.id) || comp.status === 'CONFIRMED'
-                return (
-                  <div
-                    key={comp.id}
-                    className={cn(
-                      'rounded-lg border p-3 flex items-start gap-3 transition-all',
-                      isConfirmed
-                        ? 'border-[var(--color-success)] bg-[var(--color-success-light)]'
-                        : 'border-[var(--color-border)] bg-[var(--color-surface)]',
-                    )}
-                  >
-                    <div className="h-9 w-9 rounded-lg bg-[var(--color-surface-2)] flex items-center justify-center text-xs font-bold text-[var(--color-text-3)] shrink-0">
-                      {comp.businessName.charAt(0).toUpperCase()}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-[var(--color-text)] truncate">{comp.businessName}</p>
-                      <p className="text-[10px] text-[var(--color-text-4)] truncate">{comp.discoveryReason}</p>
-                      <div className="flex items-center gap-1 mt-1">
-                        <Badge variant="outline" className="text-[10px] px-1.5">
-                          {comp.platform.toLowerCase()}
-                        </Badge>
-                        <span className="text-[10px] text-[var(--color-text-4)]">
-                          Score: {comp.relevanceScore}/100
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex gap-1 shrink-0">
-                      <button
-                        onClick={() => handleConfirm(comp.id)}
-                        className={cn(
-                          'flex h-7 w-7 items-center justify-center rounded transition-all',
-                          isConfirmed
-                            ? 'bg-[var(--color-success)] text-white'
-                            : 'bg-[var(--color-surface-2)] text-[var(--color-text-3)] hover:bg-[var(--color-success-light)] hover:text-[var(--color-success)]',
-                        )}
-                        title="Confirm competitor"
-                      >
-                        <Check className="h-3.5 w-3.5" />
-                      </button>
-                      <button
-                        onClick={() => handleDismiss(comp.id)}
-                        className="flex h-7 w-7 items-center justify-center rounded bg-[var(--color-surface-2)] text-[var(--color-text-3)] hover:bg-[var(--color-danger-light)] hover:text-[var(--color-danger)] transition-all"
-                        title="Dismiss"
-                      >
-                        <X className="h-3.5 w-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                )
-              })}
-              {!compLoading && visibleCompetitors.length === 0 && (
-                <div className="rounded-lg border border-[var(--color-border)] p-6 text-center">
-                  <Users className="h-8 w-8 text-[var(--color-text-4)] mx-auto mb-2" />
-                  <p className="text-sm text-[var(--color-text-3)]">No competitors discovered yet.</p>
-                  <p className="text-xs text-[var(--color-text-4)] mt-1">Discovery is still running — check back in a moment.</p>
-                </div>
-              )}
+          )}
+
+          {/* Address */}
+          {intelligence?.googlePlacesData?.formattedAddress && (
+            <div className="px-5 py-3 flex items-start gap-3">
+              <MapPin className="h-4 w-4 text-[var(--color-text-4)] mt-0.5 shrink-0" />
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-4)] mb-0.5">Address</p>
+                <p className="text-sm text-[var(--color-text-2)]">{intelligence.googlePlacesData.formattedAddress}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Google rating */}
+          {intelligence?.googlePlacesData?.rating !== undefined && (
+            <div className="px-5 py-3 flex items-center gap-3">
+              <Star className="h-4 w-4 text-[var(--color-warning)] shrink-0" />
+              <div className="flex items-baseline gap-1.5">
+                <span className="text-sm font-semibold text-[var(--color-text)]">
+                  {intelligence.googlePlacesData.rating?.toFixed(1)}
+                </span>
+                <span className="text-xs text-[var(--color-text-4)]">Google rating</span>
+                {intelligence.googlePlacesData.userRatingsTotal !== undefined && (
+                  <span className="text-xs text-[var(--color-text-4)]">
+                    · {intelligence.googlePlacesData.userRatingsTotal.toLocaleString()} reviews
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Detected keywords */}
+          {(intelligence?.detectedKeywords?.length ?? 0) > 0 && (
+            <div className="px-5 py-4">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-4)] mb-2">
+                Detected keywords
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                {intelligence!.detectedKeywords.slice(0, 10).map((kw) => (
+                  <Badge key={kw} variant="outline" className="text-[10px]">{kw}</Badge>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Fallback if intelligence came back empty */}
+          {!hasContent && (
+            <div className="px-5 py-6 text-center">
+              <p className="text-sm text-[var(--color-text-3)]">
+                We're still analyzing your business in the background.
+              </p>
+              <p className="text-xs text-[var(--color-text-4)] mt-1">
+                Full intelligence will be ready in your dashboard.
+              </p>
             </div>
           )}
         </div>
+      )}
+
+      {/* Info note */}
+      <div className="rounded-lg border border-[var(--color-info-light)] bg-[var(--color-info-light)] px-4 py-3 flex gap-3 items-start">
+        <Sparkles className="h-4 w-4 text-[var(--color-info)] mt-0.5 shrink-0" />
+        <p className="text-xs text-[var(--color-info-text)]">
+          Competitor discovery and SEO analysis are running in the background and will be ready when you reach your dashboard.
+        </p>
       </div>
 
-      <div className="flex items-center justify-between pt-2">
-        <p className="text-xs text-[var(--color-text-4)]">
-          {confirmedCount > 0
-            ? `✓ ${confirmedCount} competitor${confirmedCount > 1 ? 's' : ''} confirmed`
-            : 'You can add and confirm competitors later from the dashboard.'}
-        </p>
+      <div className="flex items-center justify-end pt-2">
         <Button onClick={onNext} className="gap-2">
-          Continue <ArrowRight className="h-4 w-4" />
+          Looks good — Continue <ArrowRight className="h-4 w-4" />
         </Button>
       </div>
     </div>
@@ -716,32 +649,48 @@ function Step4({ orgId }: { orgId: string }) {
   const eventSourceRef = useRef<EventSource | null>(null)
 
   const PROGRESS_STEPS = [
-    { key: 'org-intelligence',    label: 'Organization profile built' },
+    { key: 'org-intelligence',     label: 'Organization profile built' },
     { key: 'competitor-discovery', label: 'Competitors discovered' },
-    { key: 'seo-keywords',        label: 'SEO opportunities found' },
-    { key: 'content-strategy',    label: 'Content strategy built' },
-    { key: 'org-summary',         label: 'Dashboard prepared' },
+    { key: 'seo-keywords',         label: 'SEO opportunities found' },
+    { key: 'content-strategy',     label: 'Content strategy built' },
+    { key: 'org-summary',          label: 'Dashboard prepared' },
   ]
+
+  const redirectToSummary = useCallback(() => {
+    eventSourceRef.current?.close()
+    // Mark all still-pending steps as done before navigating
+    setJobProgress((prev) => {
+      const next = { ...prev }
+      for (const s of PROGRESS_STEPS) {
+        if (!next[s.key] || next[s.key].status === 'pending' || next[s.key].status === 'running') {
+          next[s.key] = { step: s.key, status: 'done', message: '' }
+        }
+      }
+      return next
+    })
+    setTimeout(() => router.push('/summary'), 800)
+  }, [router])  // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleLaunch = async () => {
     setLaunched(true)
 
-    // Update active platforms
+    // Update active platforms + language
     await orgsApi.update(orgId, {
       activePlatforms: [...platforms],
       language,
     }).catch(() => {})
 
-    // Trigger final 4 jobs
+    // Kick off all 4 final jobs (competitor-discovery was started in step 1 but re-queue is safe)
     await Promise.allSettled([
+      apiClient.post(`/api/orgs/${orgId}/jobs/competitor-discovery`),
       apiClient.post(`/api/orgs/${orgId}/jobs/seo-keywords`),
       apiClient.post(`/api/orgs/${orgId}/jobs/content-strategy`),
       apiClient.post(`/api/orgs/${orgId}/jobs/org-summary`),
     ])
 
-    // Connect SSE for live progress
+    // Connect SSE for live progress — read token from sessionStorage (where auth stores it)
     const apiUrl = process.env['NEXT_PUBLIC_API_URL'] ?? 'http://localhost:4000'
-    const token = typeof window !== 'undefined' ? localStorage.getItem('sp_token') : null
+    const token = typeof window !== 'undefined' ? sessionStorage.getItem('sp_access_token') : null
     const es = new EventSource(`${apiUrl}/api/progress/${orgId}${token ? `?token=${token}` : ''}`)
     eventSourceRef.current = es
 
@@ -762,16 +711,23 @@ function Step4({ orgId }: { orgId: string }) {
     es.onerror = () => es.close()
   }
 
-  // Auto-redirect when org-summary is done
+  // Auto-redirect when org-summary job completes
   useEffect(() => {
     const summary = jobProgress['org-summary']
     if (summary?.status === 'done') {
-      eventSourceRef.current?.close()
-      setTimeout(() => router.push('/summary'), 1200)
+      redirectToSummary()
     }
-  }, [jobProgress, router])
+  }, [jobProgress, redirectToSummary])
 
-  // Cleanup on unmount
+  // Fallback: redirect after 90 seconds even if SSE never reports done
+  // (handles Redis outages, cold-start delays, or job failures gracefully)
+  useEffect(() => {
+    if (!launched) return
+    const fallback = setTimeout(() => redirectToSummary(), 90_000)
+    return () => clearTimeout(fallback)
+  }, [launched, redirectToSummary])
+
+  // Cleanup SSE on unmount
   useEffect(() => {
     return () => { eventSourceRef.current?.close() }
   }, [])
