@@ -496,9 +496,9 @@ function Step3({ orgId, onNext }: { orgId: string; onNext: () => void }) {
   const [timedOut, setTimedOut] = useState(false)
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
-  // 60-second timeout — if jobs haven't completed, allow skipping
+  // 10-second timeout — if jobs haven't completed, allow skipping
   useEffect(() => {
-    timeoutRef.current = setTimeout(() => setTimedOut(true), 60_000)
+    timeoutRef.current = setTimeout(() => setTimedOut(true), 10_000)
     return () => { if (timeoutRef.current) clearTimeout(timeoutRef.current) }
   }, [])
 
@@ -536,7 +536,8 @@ function Step3({ orgId, onNext }: { orgId: string; onNext: () => void }) {
   const hasIntelligence = !!intelligence
   const hasCompetitors = (competitors?.length ?? 0) > 0
 
-  const canProceed = timedOut || confirmedCount >= 3 || (hasCompetitors && confirmedCount >= (competitors?.length ?? 0))
+  // Always allow proceeding — competitor confirmation is helpful but not a hard blocker
+  const canProceed = true
 
   return (
     <div className="space-y-6">
@@ -691,14 +692,12 @@ function Step3({ orgId, onNext }: { orgId: string; onNext: () => void }) {
 
       <div className="flex items-center justify-between pt-2">
         <p className="text-xs text-[var(--color-text-4)]">
-          {timedOut
-            ? 'Discovery is taking longer than expected — you can skip and add competitors later.'
-            : canProceed
-              ? '✓ Ready to continue'
-              : `Confirm at least 3 competitors to continue`}
+          {confirmedCount > 0
+            ? `✓ ${confirmedCount} competitor${confirmedCount > 1 ? 's' : ''} confirmed`
+            : 'You can add and confirm competitors later from the dashboard.'}
         </p>
-        <Button onClick={onNext} disabled={!canProceed} className="gap-2">
-          {timedOut && confirmedCount < 3 ? 'Skip for now' : 'Continue'} <ArrowRight className="h-4 w-4" />
+        <Button onClick={onNext} className="gap-2">
+          Continue <ArrowRight className="h-4 w-4" />
         </Button>
       </div>
     </div>
