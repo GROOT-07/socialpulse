@@ -219,7 +219,7 @@ function BusinessIdentitySection({ org, intelligence, onRescan }: {
           <div>
             <h2 className="text-xl font-bold text-[var(--color-text)]">{org.name}</h2>
             <div className="flex items-center gap-2 mt-1">
-              <Badge variant="outline" className="text-[10px]">{org.industry}</Badge>
+              <Badge variant="secondary" className="text-[10px]">{org.industry}</Badge>
               {org.city && (
                 <span className="flex items-center gap-1 text-xs text-[var(--color-text-4)]">
                   <MapPin className="h-3 w-3" />
@@ -258,7 +258,7 @@ function BusinessIdentitySection({ org, intelligence, onRescan }: {
             ? new Date(intelligence.lastScannedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
             : 'Never scanned'}
         </span>
-        <Button variant="outline" size="sm" onClick={onRescan} className="gap-1.5 h-7 text-xs">
+        <Button variant="secondary" size="sm" onClick={onRescan} className="gap-1.5 h-7 text-xs">
           <RefreshCcw className="h-3.5 w-3.5" /> Re-scan
         </Button>
       </div>
@@ -407,7 +407,7 @@ function SEOSection({ intelligence, keywords }: {
               <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-4)] mb-2">You rank for</p>
               <div className="flex flex-wrap gap-1.5">
                 {intelligence!.detectedKeywords.slice(0, 5).map((kw) => (
-                  <Badge key={kw} variant="outline" className="text-[10px]">{kw}</Badge>
+                  <Badge key={kw} variant="secondary" className="text-[10px]">{kw}</Badge>
                 ))}
               </div>
             </div>
@@ -442,7 +442,7 @@ function SEOSection({ intelligence, keywords }: {
                   </p>
                 </div>
                 <Badge
-                  variant="outline"
+                  variant="secondary"
                   className={cn('text-[10px] shrink-0 ml-2', kw.category === 'QUICK_WIN' && 'text-[var(--color-success)] border-[var(--color-success)]')}
                 >
                   {kw.category === 'QUICK_WIN' ? '⚡ Quick win' : kw.category.toLowerCase().replace('_', ' ')}
@@ -470,7 +470,7 @@ function CompetitorSnapshotSection({ orgName, orgMetrics, competitors }: {
           icon={<Building2 className="h-8 w-8" />}
           title="No competitors tracked yet"
           description="Competitor discovery is running. Check back in a few minutes."
-          action={<Link href="/competitors"><Button size="sm" variant="outline">View competitors</Button></Link>}
+          action={<Link href="/competitors"><Button size="sm" variant="secondary">View competitors</Button></Link>}
         />
       </div>
     )
@@ -696,7 +696,7 @@ function RoadmapSection({ playbookSummary }: { playbookSummary: PlaybookSummary 
           icon={<Calendar className="h-8 w-8" />}
           title="Building your roadmap"
           description="Your 30-day action plan is being generated. Check back in a few minutes."
-          action={<Link href="/studio/calendar"><Button size="sm" variant="outline">View calendar</Button></Link>}
+          action={<Link href="/studio/calendar"><Button size="sm" variant="secondary">View calendar</Button></Link>}
         />
       </div>
     )
@@ -710,7 +710,7 @@ function RoadmapSection({ playbookSummary }: { playbookSummary: PlaybookSummary 
           <h3 className="text-sm font-semibold text-[var(--color-text)]">30-day roadmap preview</h3>
         </div>
         <Link href="/studio/calendar">
-          <Button variant="outline" size="sm" className="h-7 text-xs gap-1">
+          <Button variant="secondary" size="sm" className="h-7 text-xs gap-1">
             View full calendar <ArrowRight className="h-3 w-3" />
           </Button>
         </Link>
@@ -822,7 +822,7 @@ export default function SummaryPage() {
         description={`A full snapshot of ${activeOrg?.name ?? 'your organization'}'s online presence.`}
         actions={
           <Button
-            variant="outline"
+            variant="secondary"
             size="sm"
             onClick={() => rescanMutation.mutate()}
             disabled={rescanMutation.isPending}

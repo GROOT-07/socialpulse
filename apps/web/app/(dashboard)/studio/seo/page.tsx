@@ -100,7 +100,7 @@ function KeywordRow({
       <td className="py-3 px-4"><DifficultyBadge value={kw.difficulty} /></td>
       <td className="py-3 px-4"><RankBadge rank={kw.currentRank} /></td>
       <td className="py-3 px-4">
-        <Badge variant="outline" className="text-[10px] capitalize">
+        <Badge variant="secondary" className="text-[10px] capitalize">
           {kw.category.toLowerCase().replace(/_/g, ' ')}
         </Badge>
       </td>
@@ -181,7 +181,7 @@ function SEOBriefPanel({ brief, onClose }: { brief: SEOBrief; onClose: () => voi
               <FileText className="h-4 w-4" /> Write this article
             </Link>
           </Button>
-          <Button variant="outline" onClick={onClose}>Close</Button>
+          <Button variant="secondary" onClick={onClose}>Close</Button>
         </div>
       </div>
     </div>

@@ -160,11 +160,11 @@ function PostCard({ post, platform }: { post: GeneratedPost; platform: string })
 
       {/* Actions */}
       <div className="flex gap-2 pt-1 border-t border-[var(--color-border)]">
-        <Button variant="outline" size="sm" className="flex-1 h-8 text-xs gap-1.5" onClick={copyAll}>
+        <Button variant="secondary" size="sm" className="flex-1 h-8 text-xs gap-1.5" onClick={copyAll}>
           {copied ? <CheckCircle2 className="h-3.5 w-3.5 text-[var(--color-success)]" /> : <Copy className="h-3.5 w-3.5" />}
           {copied ? 'Copied!' : 'Copy post'}
         </Button>
-        <Button variant="outline" size="sm" className="flex-1 h-8 text-xs gap-1.5">
+        <Button variant="secondary" size="sm" className="flex-1 h-8 text-xs gap-1.5">
           <CalendarPlus className="h-3.5 w-3.5" /> Schedule
         </Button>
       </div>
@@ -412,7 +412,7 @@ export default function PostGeneratorPage() {
                   3 variations generated for <strong>{platform.charAt(0) + platform.slice(1).toLowerCase()}</strong>
                 </p>
                 <Button
-                  variant="outline"
+                  variant="secondary"
                   size="sm"
                   className="gap-1.5 h-8 text-xs"
                   onClick={() => generateMutation.mutate()}
@@ -444,7 +444,7 @@ export default function PostGeneratorPage() {
                 Failed to generate posts. Ensure your ANTHROPIC_API_KEY is configured.
               </p>
               <Button
-                variant="outline"
+                variant="secondary"
                 size="sm"
                 className="mt-2"
                 onClick={() => generateMutation.reset()}

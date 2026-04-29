@@ -128,7 +128,7 @@ function TrendCard({ topic, onCreatePost }: { topic: TrendingTopic; onCreatePost
         >
           <Sparkles className="h-3 w-3" /> Create post
         </Button>
-        <Button variant="outline" size="sm" className="h-7 text-xs gap-1" asChild>
+        <Button variant="secondary" size="sm" className="h-7 text-xs gap-1" asChild>
           <Link href={`/studio/blog?topic=${encodeURIComponent(topic.topic)}`}>
             Write article <ChevronRight className="h-3 w-3" />
           </Link>
@@ -191,7 +191,7 @@ function IdeaCard({ idea }: { idea: TrendingIdea }) {
       </div>
 
       <Button
-        variant="outline"
+        variant="secondary"
         size="sm"
         className="w-full h-7 text-xs gap-1"
         asChild
@@ -228,7 +228,7 @@ function SpecialDayCard({ day }: { day: SpecialDay }) {
         <span className="text-xs font-semibold" style={{ color: urgency }}>
           {daysLeft === 0 ? 'Today!' : daysLeft === 1 ? 'Tomorrow' : `${daysLeft}d away`}
         </span>
-        <Button size="sm" variant="outline" className="h-7 text-xs gap-1" asChild>
+        <Button size="sm" variant="secondary" className="h-7 text-xs gap-1" asChild>
           <Link href={`/studio/posts?topic=${encodeURIComponent(day.name)}`}>
             <Sparkles className="h-3 w-3" /> Prepare
           </Link>
@@ -353,7 +353,7 @@ export default function TrendingNowPage() {
           <div>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-sm font-bold text-[var(--color-text)]">Trending Topics This Week</h2>
-              <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs" onClick={() => refetchTopics()}>
+              <Button variant="secondary" size="sm" className="gap-1.5 h-8 text-xs" onClick={() => refetchTopics()}>
                 <RefreshCw className="h-3.5 w-3.5" /> Refresh
               </Button>
             </div>

@@ -289,8 +289,8 @@ export default function BlogWriterPage() {
                 <h2 className="text-lg font-bold text-[var(--color-text)]">{outline.title}</h2>
                 <p className="text-xs text-[var(--color-text-4)] mt-1">{outline.metaDescription}</p>
                 <div className="flex items-center gap-3 mt-2">
-                  <Badge variant="outline">{outline.estimatedReadTime}</Badge>
-                  <Badge variant="outline">/{outline.slug}</Badge>
+                  <Badge variant="secondary">{outline.estimatedReadTime}</Badge>
+                  <Badge variant="secondary">/{outline.slug}</Badge>
                 </div>
               </div>
 
@@ -314,7 +314,7 @@ export default function BlogWriterPage() {
               </div>
 
               <div className="flex gap-3">
-                <Button variant="outline" onClick={() => setStep('input')}>← Back</Button>
+                <Button variant="secondary" onClick={() => setStep('input')}>← Back</Button>
                 <Button
                   className="gap-2 flex-1"
                   disabled={draftMutation.isPending}
@@ -339,11 +339,11 @@ export default function BlogWriterPage() {
                   <p className="text-xs text-[var(--color-text-4)] mt-0.5">{draft.wordCount.toLocaleString()} words · {draft.readingTime}</p>
                 </div>
                 <div className="flex gap-2">
-                  <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs" onClick={copyDraft}>
+                  <Button variant="secondary" size="sm" className="gap-1.5 h-8 text-xs" onClick={copyDraft}>
                     {copiedDraft ? <CheckCircle2 className="h-3.5 w-3.5 text-[var(--color-success)]" /> : <Copy className="h-3.5 w-3.5" />}
                     Copy article
                   </Button>
-                  <Button variant="outline" size="sm" className="gap-1.5 h-8 text-xs" onClick={() => setStep('outline')}>
+                  <Button variant="secondary" size="sm" className="gap-1.5 h-8 text-xs" onClick={() => setStep('outline')}>
                     ← Outline
                   </Button>
                 </div>
