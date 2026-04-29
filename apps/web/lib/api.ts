@@ -90,7 +90,23 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
     if (activeOrgId) headers['x-org-id'] = activeOrgId
   }
 
-  const res = await fetch(`${API_BASE}${path}`, { ...init, headers })
+  // 30-second timeout — guards against Render free-tier cold-start hangs
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 30_000)
+  let res: Response
+  try {
+    res = await fetch(`${API_BASE}${path}`, { ...init, headers, signal: controller.signal })
+  } catch (err) {
+    clearTimeout(timeoutId)
+    const isTimeout = err instanceof DOMException && err.name === 'AbortError'
+    throw new ApiError(
+      0,
+      isTimeout
+        ? 'Server is warming up — please wait a few seconds and try again.'
+        : 'Cannot reach the server. Check your connection and retry.',
+    )
+  }
+  clearTimeout(timeoutId)
 
   // ── 401 → silent refresh → retry once ────────────────────────
   if (res.status === 401 && !skipAuth && !_retry) {

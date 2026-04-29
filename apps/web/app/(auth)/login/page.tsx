@@ -62,6 +62,8 @@ export default function LoginPage() {
     } catch (err) {
       if (err instanceof ApiError) {
         setServerError(err.message)
+      } else if (err instanceof Error) {
+        setServerError(err.message)
       } else {
         setServerError("Couldn't sign in. Check your connection and retry.")
       }

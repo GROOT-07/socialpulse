@@ -50,14 +50,20 @@ app.use(helmet())
 // Build allowed origin list from comma-separated CORS_ORIGINS env var,
 // falling back to NEXT_PUBLIC_APP_URL and localhost for development.
 const rawOrigins = process.env.CORS_ORIGINS ?? process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
-const allowedOrigins = new Set(rawOrigins.split(',').map((o) => o.trim()).filter(Boolean))
+// Normalise: trim whitespace and strip any trailing slash so comparisons are consistent
+const allowedOrigins = new Set(
+  rawOrigins.split(',').map((o) => o.trim().replace(/\/+$/, '')).filter(Boolean),
+)
 
 app.use(
   cors({
     origin: (origin, callback) => {
       // Allow requests with no origin (server-to-server, curl, mobile apps)
       if (!origin) return callback(null, true)
-      if (allowedOrigins.has(origin)) return callback(null, true)
+      // Normalise incoming origin the same way before comparing
+      const normOrigin = origin.replace(/\/+$/, '')
+      if (allowedOrigins.has(normOrigin)) return callback(null, true)
+      console.warn(`[CORS] Blocked origin: ${origin}`)
       callback(new Error(`CORS: origin '${origin}' not allowed`))
     },
     credentials: true,

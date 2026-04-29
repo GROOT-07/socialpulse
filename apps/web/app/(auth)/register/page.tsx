@@ -94,6 +94,8 @@ export default function RegisterPage() {
         setServerError('An account with this email already exists.')
       } else if (err instanceof ApiError) {
         setServerError(err.message)
+      } else if (err instanceof Error) {
+        setServerError(err.message)
       } else {
         setServerError("Couldn't create account. Check your connection and retry.")
       }
