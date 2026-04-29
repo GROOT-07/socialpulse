@@ -100,7 +100,7 @@ function StepConnectAccounts({ onNext }: { onNext: () => void }) {
   const connect = async (platform: 'instagram' | 'facebook' | 'youtube') => {
     try {
       const res = await socialApi.getConnectUrl(platform)
-      if (res?.data?.url) window.location.href = res.data.url
+      if (res?.url) window.location.href = res.url
     } catch {
       toast.error('Could not start OAuth — check your API credentials')
     }
