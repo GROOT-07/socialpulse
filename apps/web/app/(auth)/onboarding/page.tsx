@@ -9,7 +9,7 @@
  * Step 4: Preferences + live job progress screen → /summary
  */
 
-import React, { useState, useEffect, useRef } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { useMutation, useQuery } from '@tanstack/react-query'
 import {
