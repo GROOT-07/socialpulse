@@ -442,7 +442,7 @@ function SEOSection({ intelligence, keywords }: {
                   </p>
                 </div>
                 <Badge
-                  variant="secondary"
+                  variant="outline"
                   className={cn('text-[10px] shrink-0 ml-2', kw.category === 'QUICK_WIN' && 'text-[var(--color-success)] border-[var(--color-success)]')}
                 >
                   {kw.category === 'QUICK_WIN' ? '⚡ Quick win' : kw.category.toLowerCase().replace('_', ' ')}
