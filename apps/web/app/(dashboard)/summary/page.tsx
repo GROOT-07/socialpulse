@@ -219,7 +219,7 @@ function BusinessIdentitySection({ org, intelligence, onRescan }: {
           <div>
             <h2 className="text-xl font-bold text-[var(--color-text)]">{org.name}</h2>
             <div className="flex items-center gap-2 mt-1">
-              <Badge variant="secondary" className="text-[10px]">{org.industry}</Badge>
+              <Badge variant="outline" className="text-[10px]">{org.industry}</Badge>
               {org.city && (
                 <span className="flex items-center gap-1 text-xs text-[var(--color-text-4)]">
                   <MapPin className="h-3 w-3" />
@@ -407,7 +407,7 @@ function SEOSection({ intelligence, keywords }: {
               <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-4)] mb-2">You rank for</p>
               <div className="flex flex-wrap gap-1.5">
                 {intelligence!.detectedKeywords.slice(0, 5).map((kw) => (
-                  <Badge key={kw} variant="secondary" className="text-[10px]">{kw}</Badge>
+                  <Badge key={kw} variant="outline" className="text-[10px]">{kw}</Badge>
                 ))}
               </div>
             </div>

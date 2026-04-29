@@ -100,7 +100,7 @@ function KeywordRow({
       <td className="py-3 px-4"><DifficultyBadge value={kw.difficulty} /></td>
       <td className="py-3 px-4"><RankBadge rank={kw.currentRank} /></td>
       <td className="py-3 px-4">
-        <Badge variant="secondary" className="text-[10px] capitalize">
+        <Badge variant="outline" className="text-[10px] capitalize">
           {kw.category.toLowerCase().replace(/_/g, ' ')}
         </Badge>
       </td>

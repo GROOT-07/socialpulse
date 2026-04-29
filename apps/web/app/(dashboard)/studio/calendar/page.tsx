@@ -250,7 +250,7 @@ export default function SmartCalendarPage() {
 
         <div className="flex items-center gap-2">
           {aiPosts.length > 0 && (
-            <Badge variant="secondary" className="text-[10px]">
+            <Badge variant="outline" className="text-[10px]">
               {aiPosts.length} AI posts loaded
             </Badge>
           )}
