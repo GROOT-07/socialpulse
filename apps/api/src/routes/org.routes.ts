@@ -13,7 +13,9 @@ import {
   socialProfileScanQueue,
 } from '../lib/queue'
 import { prisma } from '../lib/prisma'
-import { Platform } from '@prisma/client'
+import { aiService } from '../services/ai/aiService'
+import { searchKnowledgeGraph, findPlace } from '../lib/googleApis'
+import { Platform, Prisma } from '@prisma/client'
 import type { Request, Response } from 'express'
 
 const router: ReturnType<typeof Router> = Router()
@@ -102,15 +104,112 @@ router.post(
   },
 )
 
-// ── V2: Get org intelligence ──────────────────────────────────
+// ── V2: Get org intelligence (generates synchronously if missing) ─
 router.get('/:id/intelligence', async (req: Request, res: Response) => {
   const { id } = req.params as { id: string }
-  const data = await prisma.orgIntelligence.findUnique({ where: { orgId: id } })
-  if (!data) {
-    res.status(404).json({ error: 'Intelligence data not yet available' })
+
+  // Return cached data immediately if it exists
+  const existing = await prisma.orgIntelligence.findUnique({ where: { orgId: id } })
+  if (existing) {
+    res.json(existing)
     return
   }
-  res.json(data)
+
+  // No data yet — generate synchronously so the UI never spins forever
+  const org = await prisma.organization.findUnique({
+    where: { id },
+    select: { name: true, industry: true, city: true, country: true, website: true },
+  })
+  if (!org) {
+    res.status(404).json({ error: 'Organization not found' })
+    return
+  }
+
+  try {
+    // Run Google lookups in parallel (gracefully return null if keys not set)
+    const [kgData, placesData] = await Promise.all([
+      searchKnowledgeGraph(`${org.name} ${org.industry}`).catch(() => null),
+      org.city ? findPlace(org.name, org.city).catch(() => null) : Promise.resolve(null),
+    ])
+
+    const prompt = `You are analyzing a business for a social media strategy platform.
+
+Business: ${org.name}
+Industry: ${org.industry}
+Location: ${[org.city, org.country].filter(Boolean).join(', ') || 'India'}
+Website: ${org.website ?? 'Not provided'}
+Google data: ${JSON.stringify({ kg: kgData, places: placesData })}
+
+Return a JSON object ONLY (no markdown, no explanation):
+{
+  "description": "2-3 sentence overview of what this business does and who it serves",
+  "strengths": ["strength1", "strength2", "strength3"],
+  "detectedKeywords": ["keyword1", "keyword2", "keyword3", "keyword4", "keyword5"],
+  "urgentIssues": [],
+  "quickWins": []
+}`
+
+    const aiText = await aiService.complete(prompt, 600)
+    const match = aiText.match(/\{[\s\S]*\}/)
+    const ai = match
+      ? (JSON.parse(match[0]) as {
+          description: string
+          strengths: string[]
+          detectedKeywords: string[]
+          urgentIssues: unknown[]
+          quickWins: unknown[]
+        })
+      : {
+          description: `${org.name} is a ${org.industry} business${org.city ? ` based in ${org.city}` : ''}.`,
+          strengths: [],
+          detectedKeywords: [org.industry.toLowerCase()],
+          urgentIssues: [],
+          quickWins: [],
+        }
+
+    const record = await prisma.orgIntelligence.upsert({
+      where: { orgId: id },
+      create: {
+        orgId: id,
+        googleKgData: (kgData ?? {}) as unknown as Prisma.InputJsonValue,
+        googlePlacesData: (placesData ?? {}) as unknown as Prisma.InputJsonValue,
+        detectedKeywords: ai.detectedKeywords ?? [],
+        strengths: ai.strengths ?? [],
+        urgentIssues: (ai.urgentIssues ?? []) as unknown as Prisma.InputJsonValue,
+        quickWins: (ai.quickWins ?? []) as unknown as Prisma.InputJsonValue,
+        aiDiagnosis: { description: ai.description } as unknown as Prisma.InputJsonValue,
+        presenceScore: 0,
+        lastScannedAt: new Date(),
+      },
+      update: {
+        googleKgData: (kgData ?? {}) as unknown as Prisma.InputJsonValue,
+        googlePlacesData: (placesData ?? {}) as unknown as Prisma.InputJsonValue,
+        detectedKeywords: ai.detectedKeywords ?? [],
+        strengths: ai.strengths ?? [],
+        urgentIssues: (ai.urgentIssues ?? []) as unknown as Prisma.InputJsonValue,
+        quickWins: (ai.quickWins ?? []) as unknown as Prisma.InputJsonValue,
+        aiDiagnosis: { description: ai.description } as unknown as Prisma.InputJsonValue,
+        lastScannedAt: new Date(),
+      },
+    })
+
+    res.json(record)
+  } catch (err) {
+    // Even if AI fails, return a minimal record so the UI can proceed
+    console.error('[intelligence] sync generation failed:', (err as Error).message)
+    res.json({
+      orgId: id,
+      googleKgData: {},
+      googlePlacesData: {},
+      detectedKeywords: [org.industry.toLowerCase()],
+      strengths: [],
+      urgentIssues: [],
+      quickWins: [],
+      aiDiagnosis: { description: `${org.name} is a ${org.industry} business${org.city ? ` in ${org.city}` : ''}.` },
+      presenceScore: 0,
+      lastScannedAt: new Date().toISOString(),
+    })
+  }
 })
 
 // ── V2: Social accounts with latest metrics (for /summary) ───

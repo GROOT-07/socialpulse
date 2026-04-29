@@ -487,20 +487,19 @@ function Step3({ orgId, onNext }: { orgId: string; onNext: () => void }) {
     return () => clearTimeout(t)
   }, [])
 
-  // Poll until we get intelligence data, then stop
+  // Fetch intelligence — generated synchronously on backend if missing.
+  // Never retry on error (backend always returns 200 now).
   const { data: intelligence, isLoading } = useQuery({
     queryKey: ['org-intelligence', orgId],
-    queryFn: () => apiClient.get<OrgIntelligenceData>(`/api/orgs/${orgId}/intelligence`),
-    refetchInterval: (query) => {
-      const d = query.state.data as OrgIntelligenceData | undefined
-      const hasContent = !!(
-        d?.aiDiagnosis?.description ||
-        d?.googlePlacesData?.formattedAddress ||
-        (d?.detectedKeywords?.length ?? 0) > 0
-      )
-      return hasContent ? false : 3_500
+    queryFn: async () => {
+      try {
+        return await apiClient.get<OrgIntelligenceData>(`/api/orgs/${orgId}/intelligence`)
+      } catch {
+        return null // gracefully treat any error as "no data"
+      }
     },
-    refetchIntervalInBackground: false,
+    retry: false,
+    refetchInterval: false,
   })
 
   const hasContent = !!(
@@ -719,11 +718,11 @@ function Step4({ orgId }: { orgId: string }) {
     }
   }, [jobProgress, redirectToSummary])
 
-  // Fallback: redirect after 90 seconds even if SSE never reports done
+  // Fallback: redirect after 25 seconds even if SSE never reports done
   // (handles Redis outages, cold-start delays, or job failures gracefully)
   useEffect(() => {
     if (!launched) return
-    const fallback = setTimeout(() => redirectToSummary(), 90_000)
+    const fallback = setTimeout(() => redirectToSummary(), 25_000)
     return () => clearTimeout(fallback)
   }, [launched, redirectToSummary])
 
