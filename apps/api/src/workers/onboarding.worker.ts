@@ -12,7 +12,7 @@
  */
 
 import { Worker, type Job } from 'bullmq'
-import { redis } from '../lib/redis'
+import { redisWorker as redis } from '../lib/redis'
 import { prisma } from '../lib/prisma'
 import { aiService } from '../services/ai/aiService'
 import { discoverCompetitors } from '../services/competitor/competitorDiscoveryService'

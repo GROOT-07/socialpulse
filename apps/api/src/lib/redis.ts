@@ -20,10 +20,11 @@ function makeRedis(opts: RedisOptions): Redis {
 }
 
 // Standard connection — used by Queues and general cache ops
+// BullMQ Queues also require maxRetriesPerRequest: null
 export const redis =
   global.__redis ??
   makeRedis({
-    maxRetriesPerRequest: 3,
+    maxRetriesPerRequest: null,
     enableReadyCheck: false,
     lazyConnect: true,
   })
