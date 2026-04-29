@@ -354,13 +354,15 @@ export default function CompetitorMapPage(): React.JSX.Element {
                     <div className="grid grid-cols-2 gap-1.5">
                       <div className="rounded bg-surface-2 p-2">
                         <p className="font-mono text-sm font-bold text-[var(--color-text)]">
-                          {formatNumber(selectedCompetitor.latestMetrics.followers)}
+                          {formatNumber(selectedCompetitor.latestMetrics.followers ?? 0)}
                         </p>
                         <p className="text-[10px] text-[var(--color-text-4)]">Followers</p>
                       </div>
                       <div className="rounded bg-surface-2 p-2">
                         <p className="font-mono text-sm font-bold text-[var(--color-text)]">
-                          {selectedCompetitor.latestMetrics.engagementRate?.toFixed(1)}%
+                          {selectedCompetitor.latestMetrics.engagementRate != null
+                            ? `${selectedCompetitor.latestMetrics.engagementRate.toFixed(1)}%`
+                            : '—'}
                         </p>
                         <p className="text-[10px] text-[var(--color-text-4)]">Engagement</p>
                       </div>
