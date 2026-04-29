@@ -7,6 +7,7 @@ import {
   Loader2, Instagram, Facebook, Youtube, Globe, MessageCircle,
   Star, ChevronRight, Rss, Calendar,
 } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { PageHeader } from '@/components/shared/PageHeader'
@@ -63,7 +64,7 @@ interface CompetitorPost {
 
 // ── Helpers ───────────────────────────────────────────────────
 
-const PLATFORM_ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
+const PLATFORM_ICONS: Record<string, LucideIcon> = {
   INSTAGRAM: Instagram,
   FACEBOOK: Facebook,
   YOUTUBE: Youtube,
