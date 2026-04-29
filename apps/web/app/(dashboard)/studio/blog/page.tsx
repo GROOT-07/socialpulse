@@ -289,8 +289,8 @@ export default function BlogWriterPage() {
                 <h2 className="text-lg font-bold text-[var(--color-text)]">{outline.title}</h2>
                 <p className="text-xs text-[var(--color-text-4)] mt-1">{outline.metaDescription}</p>
                 <div className="flex items-center gap-3 mt-2">
-                  <Badge variant="secondary">{outline.estimatedReadTime}</Badge>
-                  <Badge variant="secondary">/{outline.slug}</Badge>
+                  <Badge variant="outline">{outline.estimatedReadTime}</Badge>
+                  <Badge variant="outline">/{outline.slug}</Badge>
                 </div>
               </div>
 

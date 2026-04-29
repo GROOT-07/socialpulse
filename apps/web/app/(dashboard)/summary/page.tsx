@@ -219,7 +219,7 @@ function BusinessIdentitySection({ org, intelligence, onRescan }: {
           <div>
             <h2 className="text-xl font-bold text-[var(--color-text)]">{org.name}</h2>
             <div className="flex items-center gap-2 mt-1">
-              <Badge variant="secondary" className="text-[10px]">{org.industry}</Badge>
+              <Badge variant="outline" className="text-[10px]">{org.industry}</Badge>
               {org.city && (
                 <span className="flex items-center gap-1 text-xs text-[var(--color-text-4)]">
                   <MapPin className="h-3 w-3" />

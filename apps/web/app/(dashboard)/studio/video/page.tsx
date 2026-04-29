@@ -69,8 +69,8 @@ function ScriptDisplay({ script }: { script: VideoScript }) {
         <div className="flex items-center gap-2">
           <Clapperboard className="h-4 w-4 text-[var(--color-accent)]" />
           <span className="text-sm font-semibold text-[var(--color-text)]">Generated Script</span>
-          <Badge variant="secondary" className="text-[10px]">{script.duration}</Badge>
-          <Badge variant="secondary" className="text-[10px]">{script.contentType.replace(/_/g, ' ')}</Badge>
+          <Badge variant="outline" className="text-[10px]">{script.duration}</Badge>
+          <Badge variant="outline" className="text-[10px]">{script.contentType.replace(/_/g, ' ')}</Badge>
         </div>
         <Button variant="secondary" size="sm" className="gap-1.5 h-8 text-xs" onClick={copyFull}>
           {copiedFull ? <CheckCircle2 className="h-3.5 w-3.5 text-[var(--color-success)]" /> : <Copy className="h-3.5 w-3.5" />}
