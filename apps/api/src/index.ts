@@ -47,22 +47,38 @@ const PORT = Number(process.env.PORT ?? 4000)
 // ── Security & parsing ────────────────────────────────────────
 app.use(helmet())
 
-// Build allowed origin list from comma-separated CORS_ORIGINS env var,
-// falling back to NEXT_PUBLIC_APP_URL and localhost for development.
+// Build allowed origin list from comma-separated CORS_ORIGINS env var.
+// Supports exact origins and wildcard patterns (e.g. https://*.vercel.app).
 const rawOrigins = process.env.CORS_ORIGINS ?? process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'
-// Normalise: trim whitespace and strip any trailing slash so comparisons are consistent
-const allowedOrigins = new Set(
-  rawOrigins.split(',').map((o) => o.trim().replace(/\/+$/, '')).filter(Boolean),
-)
+
+const normalise = (o: string) => o.trim().replace(/\/+$/, '')
+
+const { exactOrigins, wildcardPatterns } = rawOrigins
+  .split(',')
+  .map(normalise)
+  .filter(Boolean)
+  .reduce<{ exactOrigins: Set<string>; wildcardPatterns: RegExp[] }>(
+    (acc, o) => {
+      if (o.includes('*')) {
+        // Convert glob-style wildcard to regex: * → match any non-slash chars
+        const pattern = new RegExp('^' + o.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '[^/]+') + '$')
+        acc.wildcardPatterns.push(pattern)
+      } else {
+        acc.exactOrigins.add(o)
+      }
+      return acc
+    },
+    { exactOrigins: new Set(), wildcardPatterns: [] },
+  )
 
 app.use(
   cors({
     origin: (origin, callback) => {
       // Allow requests with no origin (server-to-server, curl, mobile apps)
       if (!origin) return callback(null, true)
-      // Normalise incoming origin the same way before comparing
-      const normOrigin = origin.replace(/\/+$/, '')
-      if (allowedOrigins.has(normOrigin)) return callback(null, true)
+      const normOrigin = normalise(origin)
+      if (exactOrigins.has(normOrigin)) return callback(null, true)
+      if (wildcardPatterns.some((p) => p.test(normOrigin))) return callback(null, true)
       console.warn(`[CORS] Blocked origin: ${origin}`)
       callback(new Error(`CORS: origin '${origin}' not allowed`))
     },
