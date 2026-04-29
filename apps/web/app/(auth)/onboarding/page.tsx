@@ -510,13 +510,13 @@ function Step3({ orgId, onNext }: { orgId: string; onNext: () => void }) {
   })
 
   const handleConfirm = async (id: string) => {
-    setConfirmedCompetitors((prev) => new Set([...prev, id]))
+    setConfirmedCompetitors((prev) => { const s = new Set(prev); s.add(id); return s })
     setDismissedCompetitors((prev) => { const s = new Set(prev); s.delete(id); return s })
     await apiClient.patch(`/api/competitors/${id}`, { status: 'CONFIRMED' }).catch(() => {})
   }
 
   const handleDismiss = async (id: string) => {
-    setDismissedCompetitors((prev) => new Set([...prev, id]))
+    setDismissedCompetitors((prev) => { const s = new Set(prev); s.add(id); return s })
     setConfirmedCompetitors((prev) => { const s = new Set(prev); s.delete(id); return s })
     await apiClient.patch(`/api/competitors/${id}`, { status: 'DISMISSED' }).catch(() => {})
   }
