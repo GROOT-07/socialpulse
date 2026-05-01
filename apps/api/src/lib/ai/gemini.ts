@@ -5,8 +5,8 @@
  * Never call Gemini directly from services — always use this module.
  *
  * Models (configurable via env):
- *   PRO   → GEMINI_PRO_MODEL   (default: gemini-2.5-pro-preview-05-06)
- *   FLASH → GEMINI_FLASH_MODEL (default: gemini-2.0-flash)
+ *   PRO   → GEMINI_PRO_MODEL   (default: gemini-1.5-pro)
+ *   FLASH → GEMINI_FLASH_MODEL (default: gemini-1.5-flash)
  *
  * Features:
  *   • Exponential-backoff retry (3 attempts)
@@ -27,10 +27,10 @@ import {
 // ── Model names ───────────────────────────────────────────────
 
 export const GEMINI_PRO_MODEL =
-  process.env.GEMINI_PRO_MODEL ?? 'gemini-2.5-pro-preview-05-06'
+  process.env.GEMINI_PRO_MODEL ?? 'gemini-1.5-pro'
 
 export const GEMINI_FLASH_MODEL =
-  process.env.GEMINI_FLASH_MODEL ?? 'gemini-2.0-flash'
+  process.env.GEMINI_FLASH_MODEL ?? 'gemini-1.5-flash'
 
 // ── Safety settings — keep permissive for business content ────
 

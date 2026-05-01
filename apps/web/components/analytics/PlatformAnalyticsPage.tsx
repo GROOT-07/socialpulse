@@ -1,7 +1,7 @@
 'use client'
 
-import React, { useState } from 'react'
-import { RefreshCw, AlertTriangle, Link2Off, Instagram, Facebook, Youtube } from 'lucide-react'
+import React, { useState, useEffect } from 'react'
+import { RefreshCw, AlertTriangle, Link2Off, Instagram, Facebook, Youtube, Sparkles } from 'lucide-react'
 import { usePlatformMetrics } from '@/hooks/usePlatformMetrics'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { KpiCard } from '@/components/shared/KpiCard'
@@ -44,6 +44,17 @@ export function PlatformAnalyticsPage({ platform }: PlatformAnalyticsPageProps) 
   const { data, isLoading, isError, error, refetch, isFetching } = usePlatformMetrics(platform, days)
 
   const isNotConnected = isError && (error as { status?: number })?.status === 404
+
+  // Detect all-zero state (account connected, metrics exist but all 0)
+  const hasZeroMetrics = !isLoading && !isError && data && data.metrics.length > 0
+    && (data.summary?.currentFollowers ?? 0) === 0
+
+  // Auto-refetch after 20s when syncing so estimates appear automatically
+  useEffect(() => {
+    if (!data?.syncing && !hasZeroMetrics) return
+    const t = setTimeout(() => { refetch() }, 20_000)
+    return () => clearTimeout(t)
+  }, [data?.syncing, hasZeroMetrics, refetch])
 
   return (
     <>
@@ -114,13 +125,28 @@ export function PlatformAnalyticsPage({ platform }: PlatformAnalyticsPageProps) 
         <Card className="mt-2">
           <CardContent className="p-0">
             <EmptyState
-              icon={<BarChart2 className="h-12 w-12" />}
-              heading="Waiting for first sync"
-              description="Your account is connected. Metrics will appear after the first data sync (runs daily at 7 AM UTC)."
-              action={{ label: 'Sync now', onClick: () => refetch() }}
+              icon={<Sparkles className="h-12 w-12 text-[var(--color-accent)]" />}
+              heading="AI is generating your estimates"
+              description="Your account is connected. Our AI is analysing your profile and generating realistic baseline metrics. This takes about 30 seconds — the page will refresh automatically."
+              action={{ label: 'Refresh now', onClick: () => refetch() }}
             />
           </CardContent>
         </Card>
+      )}
+
+      {/* ── AI Syncing banner (account connected, metrics exist but all zero) ── */}
+      {(hasZeroMetrics || data?.syncing) && (
+        <div className="mt-2 mb-4 flex items-center gap-3 rounded-xl border border-[var(--color-accent)]/30 bg-[var(--color-accent)]/8 px-4 py-3">
+          <Sparkles className="h-4 w-4 shrink-0 text-[var(--color-accent)] animate-pulse" />
+          <p className="text-sm text-[var(--color-text-2)]">
+            <span className="font-semibold text-[var(--color-accent)]">AI analysis in progress</span>
+            {' — '}our AI is building your baseline metrics. Data will appear shortly.
+            Auto-refreshing in 20 seconds.
+          </p>
+          <Button variant="ghost" size="sm" onClick={() => refetch()} className="ml-auto shrink-0 h-7 px-2 text-xs">
+            Refresh now
+          </Button>
+        </div>
       )}
 
       {/* ── Data ── */}

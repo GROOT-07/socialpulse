@@ -280,6 +280,7 @@ export interface PlatformMetricsResponse {
   connectedAt: string
   summary: PlatformSummary | null
   metrics: MetricPoint[]
+  syncing?: boolean  // true when connected but no data yet — AI estimate in progress
 }
 
 export interface OverviewPlatform {
@@ -742,5 +743,18 @@ export interface AITrendingTopic {
 
 export const trendsAiApi = {
   get: () => request<{ topics: AITrendingTopic[]; fromCache: boolean }>('/api/trends/ai'),
+  discover: () => request<{ topics: AITrendingTopic[]; message: string }>('/api/trends/discover', { method: 'POST' }),
+}
+
+// ── Org research API ──────────────────────────────────────────
+
+export const orgResearchApi = {
+  /** Trigger a fresh deep-research scan for the active org */
+  research: (orgId: string) =>
+    request<{ success: boolean }>(`/api/orgs/${orgId}/research`, { method: 'POST' }),
+  /** Fetch intelligence (auto-runs research if stale) */
+  intelligence: (orgId: string) =>
+    request<{ presenceScore: number; strengths: string[]; urgentIssues: unknown[]; quickWins: unknown[] }>(`/api/orgs/${orgId}/intelligence`),
+}
   discover: () => request<{ topics: AITrendingTopic[]; message: string }>('/api/trends/discover', { method: 'POST' }),
 }

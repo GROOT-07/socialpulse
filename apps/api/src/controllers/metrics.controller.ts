@@ -2,11 +2,26 @@
  * Metrics controller
  * Reads aggregated + per-platform metrics from DB (never from social APIs directly).
  * All data was written by BullMQ workers via socialDataService.
+ *
+ * Auto-bootstrap: when no metrics exist for a connected account, kicks off
+ * deepResearchOrg asynchronously so next page load shows estimated data.
  */
 
 import type { Response } from 'express'
 import type { AuthRequest } from '../middleware/auth'
 import { prisma } from '../lib/prisma'
+import { deepResearchOrg, isResearchStale } from '../services/intelligence/deepResearchService'
+
+// Fire-and-forget deep research to populate estimated metrics
+function bootstrapIfNeeded(orgId: string): void {
+  isResearchStale(orgId).then((stale) => {
+    if (stale) {
+      deepResearchOrg(orgId).catch((err) => {
+        console.warn(`[metrics] bootstrap deepResearch failed for org ${orgId}:`, (err as Error).message)
+      })
+    }
+  }).catch(() => {/* ignore */})
+}
 
 // ── Helpers ───────────────────────────────────────────────────
 
@@ -127,6 +142,8 @@ export async function getPlatformMetrics(req: AuthRequest, res: Response): Promi
   }
 
   if (account.metrics.length === 0) {
+    // Kick off background bootstrap so next load has data
+    bootstrapIfNeeded(orgId)
     res.json({
       data: {
         platform,
@@ -135,6 +152,7 @@ export async function getPlatformMetrics(req: AuthRequest, res: Response): Promi
         connectedAt: account.connectedAt,
         metrics: [],
         summary: null,
+        syncing: true,
       },
     })
     return
@@ -198,6 +216,10 @@ export async function getKpiMetrics(req: AuthRequest, res: Response): Promise<vo
       },
     },
   })
+
+  // If ALL accounts have zero metrics, trigger background bootstrap
+  const allEmpty = accounts.every((a) => a.metrics.length === 0 || a.metrics[0]!.followers === 0)
+  if (allEmpty && accounts.length > 0) bootstrapIfNeeded(orgId)
 
   let totalFollowers = 0
   let totalReach = 0

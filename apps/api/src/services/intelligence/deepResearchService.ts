@@ -328,13 +328,16 @@ RULES:
     const account = org.socialAccounts.find((a) => a.platform === platform)
     if (!account) continue
 
+    // Only skip if we have REAL metrics with actual follower counts (> 0).
+    // A 0-follower metric record from a failed API call is treated as empty.
     const hasRealData = await prisma.socialMetrics.count({
       where: {
         socialAccountId: account.id,
+        followers: { gt: 0 },
         rawJson: { not: { path: ['isEstimated'], equals: true } },
       },
     })
-    if (hasRealData > 0) continue // preserve real data
+    if (hasRealData > 0) continue // preserve real non-zero data
 
     const followers = Math.max(0, est.followers ?? 0)
     const engRate = Math.min(20, Math.max(0, est.engagementRate ?? 0))

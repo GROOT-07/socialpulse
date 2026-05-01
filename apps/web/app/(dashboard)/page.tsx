@@ -1,6 +1,6 @@
 'use client'
 
-import React from 'react'
+import React, { useEffect } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import {
@@ -11,7 +11,7 @@ import {
 } from 'lucide-react'
 import {
   metricsApi, competitorApi, briefApi, checklistApi,
-  opsApi, reputationApi,
+  opsApi, reputationApi, orgResearchApi,
   type KpiResponse, type OPSBreakdown, type ReputationReport,
 } from '@/lib/api'
 import { PageHeader } from '@/components/shared/PageHeader'
@@ -189,12 +189,43 @@ export default function DashboardPage() {
   const ops = (opsData as { ops: OPSBreakdown } | undefined)?.ops
   const reputation = (repData as { reputation: ReputationReport } | undefined)?.reputation
 
+  // When KPIs are all zero, immediately kick off AI research and poll every 25s
+  const kpisAllZero = !kpiLoading && kpis !== undefined && kpis.totalFollowers === 0
+  useEffect(() => {
+    if (!kpisAllZero || !orgId) return
+    // Fire research immediately (non-blocking)
+    orgResearchApi.research(orgId).catch(() => {/* swallow — bootstrap also runs server-side */})
+    // Then poll every 25s until data appears
+    const t = setInterval(() => {
+      qc.invalidateQueries({ queryKey: ['metrics', 'kpis'] })
+    }, 25_000)
+    return () => clearInterval(t)
+  }, [kpisAllZero, orgId, qc])
+
   return (
     <>
       <PageHeader
         title="Dashboard"
         description={`Welcome back${activeOrg?.name ? `, ${activeOrg.name}` : ''}. Here's your brand intelligence overview.`}
       />
+
+      {/* ── AI syncing banner (first-time, no data yet) ── */}
+      {kpisAllZero && (
+        <div className="mb-4 flex items-center gap-3 rounded-xl border border-[var(--color-accent)]/30 bg-[var(--color-accent)]/8 px-4 py-3">
+          <Sparkles className="h-4 w-4 shrink-0 text-[var(--color-accent)] animate-pulse" />
+          <p className="text-sm text-[var(--color-text-2)]">
+            <span className="font-semibold text-[var(--color-accent)]">AI is analyzing your brand</span>
+            {' — '}generating your first intelligence report and baseline metrics. This takes about 30 seconds.
+          </p>
+          <Button
+            variant="ghost" size="sm"
+            onClick={() => qc.invalidateQueries({ queryKey: ['metrics', 'kpis'] })}
+            className="ml-auto shrink-0 h-7 px-2 text-xs"
+          >
+            <RefreshCw className="h-3 w-3 mr-1" />Refresh
+          </Button>
+        </div>
+      )}
 
       {/* ── KPI row ── */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
