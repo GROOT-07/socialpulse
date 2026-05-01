@@ -756,5 +756,3 @@ export const orgResearchApi = {
   intelligence: (orgId: string) =>
     request<{ presenceScore: number; strengths: string[]; urgentIssues: unknown[]; quickWins: unknown[] }>(`/api/orgs/${orgId}/intelligence`),
 }
-  discover: () => request<{ topics: AITrendingTopic[]; message: string }>('/api/trends/discover', { method: 'POST' }),
-}
