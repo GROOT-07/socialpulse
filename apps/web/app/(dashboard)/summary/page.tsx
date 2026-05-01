@@ -354,7 +354,7 @@ export default function SummaryPage() {
                         <MapPin className="h-2.5 w-2.5" />{(activeOrg as { city?: string }).city}
                       </Badge>
                     )}
-                    {activeOrg?.activePlatforms?.map((p) => <Badge key={p} variant="secondary" className="text-[10px]">{p}</Badge>)}
+                    {activeOrg?.activePlatforms?.map((p) => <Badge key={p} variant="outline" className="text-[10px]">{p}</Badge>)}
                   </div>
                 </div>
               </div>
@@ -549,7 +549,7 @@ export default function SummaryPage() {
               ) : (
                 <div className="px-5 py-8 flex flex-wrap gap-2">
                   {(intel?.detectedKeywords ?? []).map((kw, i) => (
-                    <Badge key={i} variant="secondary" className="text-[11px]">{kw}</Badge>
+                    <Badge key={i} variant="outline" className="text-[11px]">{kw}</Badge>
                   ))}
                   {!intel?.detectedKeywords?.length && (
                     <p className="text-xs text-[var(--color-text-4)]">Click Refresh to generate SEO keywords</p>
