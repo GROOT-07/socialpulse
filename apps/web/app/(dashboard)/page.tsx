@@ -271,12 +271,12 @@ export default function DashboardPage() {
                   <p className="text-[10px] text-center text-[var(--color-text-4)] mt-1">out of 100</p>
                 </div>
                 <div className="flex-1 space-y-2 min-w-0">
-                  {Object.entries(ops.components).map(([key, comp]) => (
+                  {ops.components && Object.entries(ops.components).map(([key, comp]) => (
                     <ComponentBar
                       key={key}
-                      label={comp.label}
-                      score={comp.score}
-                      weight={comp.weight}
+                      label={(comp as { label: string; score: number; weight: number }).label}
+                      score={(comp as { label: string; score: number; weight: number }).score}
+                      weight={(comp as { label: string; score: number; weight: number }).weight}
                     />
                   ))}
                 </div>
