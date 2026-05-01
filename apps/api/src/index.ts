@@ -33,6 +33,8 @@ import adminRoutes from './routes/admin.routes'
 import { progressRouter } from './routes/progress.routes'
 import specialDaysRoutes from './routes/specialdays.routes'
 import trendsRoutes from './routes/trends.routes'
+import opsRoutes from './routes/ops.routes'
+import reputationRoutes from './routes/reputation.routes'
 import { errorHandler } from './middleware/errorHandler'
 import { scheduleRecurringJobs } from './lib/queue'
 import { createMetricsWorker } from './workers/metrics.worker'
@@ -127,6 +129,8 @@ app.use('/api/admin', adminRoutes)
 app.use('/api/progress', progressRouter)
 app.use('/api/special-days', specialDaysRoutes)
 app.use('/api/trends', trendsRoutes)
+app.use('/api/ops', opsRoutes)
+app.use('/api/reputation', reputationRoutes)
 
 // ── 404 ───────────────────────────────────────────────────────
 app.use((_req, res) => {

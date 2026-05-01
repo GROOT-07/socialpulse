@@ -9,7 +9,7 @@ import {
   CalendarDays, CheckSquare, Lightbulb, ClipboardCheck, BookOpen,
   Settings, Link2, ShieldCheck, ChevronDown, ChevronsLeft, ChevronsRight,
   Building2, Sparkles, FileText, Video, Search, TrendingUp,
-  Map, Activity, MessageCircle,
+  Map, Activity, MessageCircle, Shield, Star,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useOrgStore } from '@/store/org.store'
@@ -21,9 +21,10 @@ const NAV_SECTIONS = [
   {
     label: 'Overview',
     items: [
-      { label: 'Dashboard',            href: '/',        icon: LayoutDashboard },
-      { label: 'Organization Summary', href: '/summary', icon: Activity },
-      { label: 'Daily Brief',          href: '/brief',   icon: Newspaper },
+      { label: 'Dashboard',            href: '/',            icon: LayoutDashboard },
+      { label: 'Organization Summary', href: '/summary',     icon: Activity },
+      { label: 'Reputation',           href: '/reputation',  icon: Shield },
+      { label: 'Daily Brief',          href: '/brief',       icon: Newspaper },
     ],
   },
   {

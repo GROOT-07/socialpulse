@@ -90,9 +90,9 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
     if (activeOrgId) headers['x-org-id'] = activeOrgId
   }
 
-  // 30-second timeout — guards against Render free-tier cold-start hangs
+  // 60-second timeout — Render free-tier cold-starts can take ~50 s
   const controller = new AbortController()
-  const timeoutId = setTimeout(() => controller.abort(), 30_000)
+  const timeoutId = setTimeout(() => controller.abort(), 60_000)
   let res: Response
   try {
     res = await fetch(`${API_BASE}${path}`, { ...init, headers, signal: controller.signal })
@@ -102,7 +102,7 @@ export async function request<T>(path: string, options: RequestOptions = {}): Pr
     throw new ApiError(
       0,
       isTimeout
-        ? 'Server is warming up — please wait a few seconds and try again.'
+        ? 'Server is starting up — this takes ~30 s on first load. Please refresh in a moment.'
         : 'Cannot reach the server. Check your connection and retry.',
     )
   }
@@ -663,3 +663,83 @@ export const specialDaysApi = {
   byMonth: (month: number, year: number) =>
     request<SpecialDay[]>(`/api/special-days?month=${month}&year=${year}`),
 }
+
+// ── OPS (Online Presence Score) ───────────────────────────────
+
+export interface OPSComponent {
+  score: number
+  weight: number
+  label: string
+  detail: string
+}
+
+export interface OPSBreakdown {
+  overall: number
+  components: {
+    seoAuthority:       OPSComponent
+    socialEngagement:   OPSComponent
+    brandSentiment:     OPSComponent
+    searchVisibility:   OPSComponent
+    reviewReputation:   OPSComponent
+    contentConsistency: OPSComponent
+    websiteQuality:     OPSComponent
+    trendParticipation: OPSComponent
+  }
+  recommendations: string[]
+  tier: 'Building' | 'Developing' | 'Established' | 'Authority'
+  calculatedAt: string
+}
+
+export const opsApi = {
+  get: () => request<{ ops: OPSBreakdown }>('/api/ops'),
+  recalc: () => request<{ ops: OPSBreakdown }>('/api/ops/recalc', { method: 'POST' }),
+}
+
+// ── Reputation ────────────────────────────────────────────────
+
+export interface ReviewItem {
+  source: string
+  rating: number
+  text: string
+  date: string
+  sentiment: 'positive' | 'neutral' | 'negative'
+}
+
+export interface ReputationReport {
+  overallRating: number
+  totalReviews: number
+  sentimentScore: number
+  positiveCount: number
+  neutralCount: number
+  negativeCount: number
+  ratingDistribution: Record<string, number>
+  topThemes: string[]
+  recentReviews: ReviewItem[]
+  summary: string
+  responseRecommendation: string
+  sources: string[]
+  fetchedAt: string
+}
+
+export const reputationApi = {
+  get: () => request<{ reputation: ReputationReport }>('/api/reputation'),
+  refresh: () => request<{ reputation: ReputationReport }>('/api/reputation/refresh', { method: 'POST' }),
+}
+
+// ── AI Trending Topics ────────────────────────────────────────
+
+export interface AITrendingTopic {
+  id: string
+  topic: string
+  category: string
+  searchVolume: number
+  trendDelta: number
+  competitorsCovering: number
+  suggestedPostDraft: string | null
+  platform: string | null
+  fetchedAt: string
+}
+
+export const trendsAiApi = {
+  get: () => request<{ topics: AITrendingTopic[]; fromCache: boolean }>('/api/trends/ai'),
+  discover: () => request<{ topics: AITrendingTopic[]; message: string }>('/api/trends/discover', { method
