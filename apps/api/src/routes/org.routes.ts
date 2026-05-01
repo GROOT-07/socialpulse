@@ -13,9 +13,8 @@ import {
   socialProfileScanQueue,
 } from '../lib/queue'
 import { prisma } from '../lib/prisma'
-import { aiService } from '../services/ai/aiService'
-import { searchKnowledgeGraph, findPlace } from '../lib/googleApis'
-import { Platform, Prisma } from '@prisma/client'
+import { Platform } from '@prisma/client'
+import { deepResearchOrg, isResearchStale } from '../services/intelligence/deepResearchService'
 import type { Request, Response } from 'express'
 
 const router: ReturnType<typeof Router> = Router()
@@ -104,111 +103,58 @@ router.post(
   },
 )
 
-// ── V2: Get org intelligence (generates synchronously if missing) ─
+// ── V2: Get org intelligence (deep-research if missing/stale) ─
 router.get('/:id/intelligence', async (req: Request, res: Response) => {
   const { id } = req.params as { id: string }
 
-  // Return cached data immediately if it exists
-  const existing = await prisma.orgIntelligence.findUnique({ where: { orgId: id } })
-  if (existing) {
-    res.json(existing)
-    return
-  }
-
-  // No data yet — generate synchronously so the UI never spins forever
+  // Verify org exists
   const org = await prisma.organization.findUnique({
     where: { id },
-    select: { name: true, industry: true, city: true, country: true, website: true },
+    select: { id: true, name: true, industry: true, city: true },
   })
-  if (!org) {
-    res.status(404).json({ error: 'Organization not found' })
-    return
+  if (!org) { res.status(404).json({ error: 'Organization not found' }); return }
+
+  // Check if we need to (re)generate
+  const stale = await isResearchStale(id)
+  if (stale) {
+    try {
+      await deepResearchOrg(id)
+    } catch (err) {
+      console.error('[intelligence] deepResearch failed:', (err as Error).message)
+      // Fall through — return whatever we have (may be null)
+    }
   }
 
-  try {
-    // Run Google lookups in parallel (gracefully return null if keys not set)
-    const [kgData, placesData] = await Promise.all([
-      searchKnowledgeGraph(`${org.name} ${org.industry}`).catch(() => null),
-      org.city ? findPlace(org.name, org.city).catch(() => null) : Promise.resolve(null),
-    ])
-
-    const prompt = `You are analyzing a business for a social media strategy platform.
-
-Business: ${org.name}
-Industry: ${org.industry}
-Location: ${[org.city, org.country].filter(Boolean).join(', ') || 'India'}
-Website: ${org.website ?? 'Not provided'}
-Google data: ${JSON.stringify({ kg: kgData, places: placesData })}
-
-Return a JSON object ONLY (no markdown, no explanation):
-{
-  "description": "2-3 sentence overview of what this business does and who it serves",
-  "strengths": ["strength1", "strength2", "strength3"],
-  "detectedKeywords": ["keyword1", "keyword2", "keyword3", "keyword4", "keyword5"],
-  "urgentIssues": [],
-  "quickWins": []
-}`
-
-    const aiText = await aiService.complete(prompt, 600)
-    const match = aiText.match(/\{[\s\S]*\}/)
-    const ai = match
-      ? (JSON.parse(match[0]) as {
-          description: string
-          strengths: string[]
-          detectedKeywords: string[]
-          urgentIssues: unknown[]
-          quickWins: unknown[]
-        })
-      : {
-          description: `${org.name} is a ${org.industry} business${org.city ? ` based in ${org.city}` : ''}.`,
-          strengths: [],
-          detectedKeywords: [org.industry.toLowerCase()],
-          urgentIssues: [],
-          quickWins: [],
-        }
-
-    const record = await prisma.orgIntelligence.upsert({
-      where: { orgId: id },
-      create: {
-        orgId: id,
-        googleKgData: (kgData ?? {}) as unknown as Prisma.InputJsonValue,
-        googlePlacesData: (placesData ?? {}) as unknown as Prisma.InputJsonValue,
-        detectedKeywords: ai.detectedKeywords ?? [],
-        strengths: ai.strengths ?? [],
-        urgentIssues: (ai.urgentIssues ?? []) as unknown as Prisma.InputJsonValue,
-        quickWins: (ai.quickWins ?? []) as unknown as Prisma.InputJsonValue,
-        aiDiagnosis: { description: ai.description } as unknown as Prisma.InputJsonValue,
-        presenceScore: 0,
-        lastScannedAt: new Date(),
-      },
-      update: {
-        googleKgData: (kgData ?? {}) as unknown as Prisma.InputJsonValue,
-        googlePlacesData: (placesData ?? {}) as unknown as Prisma.InputJsonValue,
-        detectedKeywords: ai.detectedKeywords ?? [],
-        strengths: ai.strengths ?? [],
-        urgentIssues: (ai.urgentIssues ?? []) as unknown as Prisma.InputJsonValue,
-        quickWins: (ai.quickWins ?? []) as unknown as Prisma.InputJsonValue,
-        aiDiagnosis: { description: ai.description } as unknown as Prisma.InputJsonValue,
-        lastScannedAt: new Date(),
-      },
-    })
-
-    res.json(record)
-  } catch (err) {
-    // Even if AI fails, return a minimal record so the UI can proceed
-    console.error('[intelligence] sync generation failed:', (err as Error).message)
+  const record = await prisma.orgIntelligence.findUnique({ where: { orgId: id } })
+  if (!record) {
+    // Absolute fallback so UI never gets a 404
     res.json({
       orgId: id,
-      googleKgData: {},
-      googlePlacesData: {},
+      presenceScore: 0,
       detectedKeywords: [org.industry.toLowerCase()],
       strengths: [],
       urgentIssues: [],
       quickWins: [],
       aiDiagnosis: { description: `${org.name} is a ${org.industry} business${org.city ? ` in ${org.city}` : ''}.` },
-      presenceScore: 0,
       lastScannedAt: new Date().toISOString(),
     })
+    return
+  }
+  res.json(record)
+})
+
+// ── V2: Force fresh research scan ────────────────────────────
+router.post('/:id/research', async (req: Request, res: Response) => {
+  const { id } = req.params as { id: string }
+  const org = await prisma.organization.findUnique({ where: { id }, select: { id: true } })
+  if (!org) { res.status(404).json({ error: 'Organization not found' }); return }
+
+  try {
+    await deepResearchOrg(id)
+    const record = await prisma.orgIntelligence.findUnique({ where: { orgId: id } })
+    res.json({ success: true, intelligence: record })
+  } catch (err) {
+    res.status(500).json({ error: 'Research failed', message: (err as Error).message })
   }
 })
 

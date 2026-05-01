@@ -1,15 +1,11 @@
 'use client'
 
 /**
- * Organization Summary Page (/summary) — MODIFICATIONS_V2.md §2
+ * Organization Summary Page — Claude-first intelligence engine.
  *
- * Sections:
- *   1. Business Identity Card + Presence Score gauge
- *   2. Social Media Presence Report (per-platform cards)
- *   3. SEO & Search Visibility Report
- *   4. Competitor Snapshot Table
- *   5. AI Diagnosis (Strengths / Urgent Issues / Quick Wins)
- *   6. 30-Day Roadmap Preview
+ * On first load (or stale data >24 h), the backend runs deepResearchOrg()
+ * via Claude API, which populates OrgIntelligence, Competitors, Keywords,
+ * and AI-estimated SocialMetrics — no external API keys needed.
  */
 
 import React, { useState } from 'react'
@@ -17,724 +13,182 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import Link from 'next/link'
 import {
   RefreshCcw, Sparkles, ArrowRight, Instagram, Facebook, Youtube,
-  Search, MessageCircle, TrendingUp, TrendingDown, Minus,
-  AlertTriangle, CheckCircle2, Zap, Calendar, ExternalLink,
-  Star, Globe, MapPin, Building2, Loader2, ChevronRight,
+  TrendingUp, TrendingDown, Minus, AlertTriangle, CheckCircle2,
+  Calendar, ExternalLink, Building2, Loader2,
+  BarChart3, Target, Search, ChevronRight, Brain,
+  Award, Lightbulb, MapPin,
 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { PageHeader } from '@/components/shared/PageHeader'
-import { KpiCard } from '@/components/shared/KpiCard'
-import { EmptyState } from '@/components/shared/EmptyState'
 import { cn } from '@/lib/utils'
 import { useOrgStore } from '@/store/org.store'
 import { apiClient } from '@/lib/api'
+import { toast } from 'sonner'
 
 // ── Types ─────────────────────────────────────────────────────
 
 interface OrgIntelligence {
   presenceScore: number
-  presenceScoreBreakdown: {
-    socialFollowers: number
-    socialEngagement: number
-    seoKeywords: number
-    googleProfile: number
-    contentFreshness: number
-    total: number
-  } | null
-  googleKgData: { description?: string; name?: string } | null
-  googlePlacesData: {
-    rating?: number
-    userRatingsTotal?: number
-    formattedAddress?: string
-    openingHours?: string[] | null
-  } | null
   detectedKeywords: string[]
   strengths: string[]
   urgentIssues: Array<{ issue: string; actionLink: string }> | null
   quickWins: Array<{ action: string; impact: string }> | null
-  aiDiagnosis: { description?: string } | null
+  aiDiagnosis: Record<string, unknown> | null
   lastScannedAt: string | null
 }
 
-interface PlaybookSummary {
-  presenceScore: number
-  diagnosis: { description?: string }
-  strengths: string[]
-  urgentIssues: Array<{ issue: string; actionLink: string }>
-  quickWins: Array<{ action: string; impact: string }>
-  roadmap: {
-    weeks: Array<{
-      week: number
-      theme: string
-      actions: Array<{ day: string; action: string; platform: string; type: string }>
-    }>
-  }
-}
-
-interface SocialAccount {
-  id: string
+interface PlatformOverview {
   platform: string
   handle: string | null
   profileUrl: string | null
-  metrics: Array<{
+  isEstimated: boolean
+  latest: {
     followers: number
     engagementRate: number
     posts: number
-    snapshotDate: string
-  }>
+    avgLikes: number
+    avgComments: number
+    reach: number
+  } | null
+  followerGrowthPct: number
 }
 
 interface Competitor {
   id: string
-  businessName: string
   handle: string
+  name: string
   platform: string
-  relevanceScore: number
-  metrics: Array<{ followers: number; engagementRate: number }>
+  profileUrl: string | null
+  latestMetrics: { followers: number; engagementRate: number; avgLikes: number } | null
 }
 
 interface KeywordOpportunity {
   keyword: string
   searchVolume: number
   difficulty: number
-  currentRank: number | null
-  competitorDomain: string | null
   category: string
 }
 
-// ── Presence Score Gauge ──────────────────────────────────────
+interface CalendarPost {
+  id: string
+  date: string
+  platform: string
+  topic: string
+  format: string
+}
 
-function PresenceGauge({ score }: { score: number }) {
-  const angle = (score / 100) * 180 - 90 // -90 to +90 degrees
-  const color = score < 40 ? 'var(--color-danger)' : score < 65 ? 'var(--color-warning)' : 'var(--color-success)'
-  const label = score < 40 ? 'Weak' : score < 65 ? 'Developing' : 'Strong'
+// ── Platform config ───────────────────────────────────────────
 
-  // SVG arc path
-  const r = 60
-  const cx = 80
-  const cy = 80
-  const startAngle = Math.PI
-  const endAngle = startAngle + (score / 100) * Math.PI
-  const x1 = cx + r * Math.cos(startAngle)
-  const y1 = cy + r * Math.sin(startAngle)
-  const x2 = cx + r * Math.cos(endAngle)
-  const y2 = cy + r * Math.sin(endAngle)
-  const largeArc = score > 50 ? 1 : 0
+const PLATFORM_CFG: Record<string, {
+  label: string
+  Icon: React.ComponentType<{ className?: string; style?: React.CSSProperties }>
+  color: string
+  bg: string
+}> = {
+  INSTAGRAM: { label: 'Instagram', Icon: Instagram, color: '#E1306C', bg: '#E1306C18' },
+  FACEBOOK:  { label: 'Facebook',  Icon: Facebook,  color: '#1877F2', bg: '#1877F218' },
+  YOUTUBE:   { label: 'YouTube',   Icon: Youtube,   color: '#FF0000', bg: '#FF000018' },
+}
 
+// ── Helpers ───────────────────────────────────────────────────
+
+function fmt(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`
+  return String(n)
+}
+
+function diffLabel(d: number): { label: string; color: string } {
+  if (d < 30) return { label: 'Easy', color: '#22C55E' }
+  if (d < 60) return { label: 'Medium', color: '#F59E0B' }
+  return { label: 'Hard', color: '#EF4444' }
+}
+
+// ── Presence Arc ──────────────────────────────────────────────
+
+function PresenceArc({ score }: { score: number }) {
+  const r = 54, cx = 64, cy = 64
+  const circ = Math.PI * r
+  const filled = (score / 100) * circ
+  const color = score < 35 ? '#EF4444' : score < 60 ? '#F59E0B' : '#22C55E'
+  const label = score < 35 ? 'Building' : score < 60 ? 'Growing' : 'Strong'
   return (
     <div className="flex flex-col items-center">
-      <svg width="160" height="100" viewBox="0 0 160 100">
-        {/* Track */}
-        <path
-          d={`M ${cx - r} ${cy} A ${r} ${r} 0 0 1 ${cx + r} ${cy}`}
-          fill="none"
-          stroke="var(--color-surface-2)"
-          strokeWidth="12"
-          strokeLinecap="round"
-        />
-        {/* Fill */}
-        {score > 0 && (
-          <path
-            d={`M ${x1} ${y1} A ${r} ${r} 0 ${largeArc} 1 ${x2} ${y2}`}
-            fill="none"
-            stroke={color}
-            strokeWidth="12"
-            strokeLinecap="round"
-            style={{ transition: 'stroke-dashoffset 1s ease' }}
-          />
-        )}
-        {/* Center score */}
-        <text x={cx} y={cy - 4} textAnchor="middle" fontSize="24" fontWeight="700" fill="var(--color-text)" fontFamily="var(--font-mono)">
-          {score}
-        </text>
-        <text x={cx} y={cy + 16} textAnchor="middle" fontSize="11" fill="var(--color-text-3)" fontFamily="var(--font-sans)">
-          / 100
-        </text>
+      <svg viewBox="0 0 128 80" className="w-40 h-24">
+        <path d={`M 10 70 A ${r} ${r} 0 0 1 118 70`} fill="none" stroke="var(--color-border)" strokeWidth="10" strokeLinecap="round" />
+        <path d={`M 10 70 A ${r} ${r} 0 0 1 118 70`} fill="none" stroke={color} strokeWidth="10" strokeLinecap="round"
+          strokeDasharray={`${filled} ${circ}`} style={{ transition: 'stroke-dasharray 1s ease' }} />
+        <text x="64" y="62" textAnchor="middle" fontSize="22" fontWeight="700" fill="var(--color-text)">{score}</text>
+        <text x="64" y="76" textAnchor="middle" fontSize="9" fill="var(--color-text-3)">/100</text>
       </svg>
-      <div className="flex items-center gap-1.5 -mt-2">
-        <div className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
-        <span className="text-sm font-semibold" style={{ color }}>{label}</span>
-      </div>
-      <p className="text-[10px] text-[var(--color-text-4)] mt-1">Online visibility score</p>
+      <span className="text-xs font-semibold mt-1" style={{ color }}>{label} Presence</span>
     </div>
   )
 }
 
-// ── Platform icon helper ──────────────────────────────────────
+// ── Platform Card ─────────────────────────────────────────────
 
-function PlatformIcon({ platform, size = 16 }: { platform: string; size?: number }) {
-  const props = { style: { width: size, height: size } }
-  if (platform === 'INSTAGRAM') return <Instagram {...props} style={{ ...props.style, color: 'var(--platform-instagram)' }} />
-  if (platform === 'FACEBOOK')  return <Facebook  {...props} style={{ ...props.style, color: 'var(--platform-facebook)' }} />
-  if (platform === 'YOUTUBE')   return <Youtube   {...props} style={{ ...props.style, color: 'var(--platform-youtube)' }} />
-  if (platform === 'WHATSAPP')  return <MessageCircle {...props} style={{ ...props.style, color: 'var(--platform-whatsapp)' }} />
-  if (platform === 'GOOGLE')    return <Search    {...props} style={{ ...props.style, color: 'var(--platform-google)' }} />
-  return <Globe {...props} style={{ ...props.style, color: 'var(--color-text-4)' }} />
-}
-
-function platformColor(platform: string): string {
-  const map: Record<string, string> = {
-    INSTAGRAM: 'var(--platform-instagram)',
-    FACEBOOK: 'var(--platform-facebook)',
-    YOUTUBE: 'var(--platform-youtube)',
-    WHATSAPP: 'var(--platform-whatsapp)',
-    GOOGLE: 'var(--platform-google)',
-  }
-  return map[platform] ?? 'var(--color-text-4)'
-}
-
-function completenessScore(account: SocialAccount): number {
-  let score = 0
-  if (account.handle) score += 30
-  if (account.profileUrl) score += 20
-  const m = account.metrics[0]
-  if (m && m.followers > 0) score += 30
-  if (m && m.posts > 0) score += 20
-  return score
-}
-
-// ── Section 1: Business Identity Card ────────────────────────
-
-function BusinessIdentitySection({ org, intelligence, onRescan }: {
-  org: { name: string; industry: string; city?: string | null; country?: string | null; logoUrl: string | null; brandColor: string | null }
-  intelligence: OrgIntelligence | null
-  onRescan: () => void
-}) {
+function PlatformCard({ data }: { data: PlatformOverview }) {
+  const cfg = PLATFORM_CFG[data.platform]
+  if (!cfg) return null
+  const { Icon, color, bg } = cfg
+  const m = data.latest
   return (
-    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
-      <div className="flex items-start gap-6 flex-wrap">
-        {/* Left: Org identity */}
-        <div className="flex items-center gap-4 flex-1 min-w-60">
-          <div
-            className="h-16 w-16 rounded-xl flex items-center justify-center text-white text-xl font-bold shrink-0"
-            style={{ backgroundColor: org.brandColor ?? 'var(--color-accent)' }}
-          >
-            {org.logoUrl ? (
-              <img src={org.logoUrl} alt={org.name} className="h-full w-full rounded-xl object-cover" />
-            ) : (
-              org.name.charAt(0).toUpperCase()
-            )}
+    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5 flex flex-col gap-4">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2.5">
+          <div className="h-9 w-9 rounded-lg flex items-center justify-center" style={{ background: bg }}>
+            <Icon className="h-5 w-5" style={{ color }} />
           </div>
           <div>
-            <h2 className="text-xl font-bold text-[var(--color-text)]">{org.name}</h2>
-            <div className="flex items-center gap-2 mt-1">
-              <Badge variant="outline" className="text-[10px]">{org.industry}</Badge>
-              {org.city && (
-                <span className="flex items-center gap-1 text-xs text-[var(--color-text-4)]">
-                  <MapPin className="h-3 w-3" />
-                  {org.city}{org.country ? `, ${org.country}` : ''}
+            <p className="font-semibold text-sm text-[var(--color-text)]">{cfg.label}</p>
+            {data.handle && <p className="text-[11px] text-[var(--color-text-4)]">@{data.handle}</p>}
+          </div>
+        </div>
+        <Badge variant="outline" className={cn('text-[9px]', data.isEstimated ? 'border-[var(--color-border)] text-[var(--color-text-4)]' : 'border-green-500/30 text-green-500')}>
+          {data.isEstimated ? 'AI estimate' : 'Live data'}
+        </Badge>
+      </div>
+
+      {m ? (
+        <>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="rounded-lg p-3" style={{ background: bg }}>
+              <p className="text-[10px] text-[var(--color-text-4)] mb-0.5">Followers</p>
+              <p className="text-lg font-bold" style={{ color }}>{fmt(m.followers)}</p>
+              <div className="flex items-center gap-1 mt-0.5">
+                {data.followerGrowthPct > 0 ? <TrendingUp className="h-3 w-3 text-green-500" /> : data.followerGrowthPct < 0 ? <TrendingDown className="h-3 w-3 text-red-500" /> : <Minus className="h-3 w-3 text-[var(--color-text-4)]" />}
+                <span className={cn('text-[10px]', data.followerGrowthPct > 0 ? 'text-green-500' : data.followerGrowthPct < 0 ? 'text-red-500' : 'text-[var(--color-text-4)]')}>
+                  {data.followerGrowthPct > 0 ? '+' : ''}{data.followerGrowthPct.toFixed(1)}%
                 </span>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* Center: AI description */}
-        <div className="flex-1 min-w-60">
-          {intelligence?.aiDiagnosis?.description ? (
-            <p className="text-sm text-[var(--color-text-2)] leading-relaxed">
-              {intelligence.aiDiagnosis.description}
-            </p>
-          ) : (
-            <div className="space-y-2">
-              <div className="h-3 w-full rounded bg-[var(--color-surface-2)] animate-pulse" />
-              <div className="h-3 w-4/5 rounded bg-[var(--color-surface-2)] animate-pulse" />
-              <div className="h-3 w-3/5 rounded bg-[var(--color-surface-2)] animate-pulse" />
-            </div>
-          )}
-        </div>
-
-        {/* Right: Presence Score */}
-        <div className="shrink-0">
-          <PresenceGauge score={intelligence?.presenceScore ?? 0} />
-        </div>
-      </div>
-
-      <div className="flex items-center justify-between mt-4 pt-4 border-t border-[var(--color-border)]">
-        <span className="text-xs text-[var(--color-text-4)]">
-          Last updated:{' '}
-          {intelligence?.lastScannedAt
-            ? new Date(intelligence.lastScannedAt).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })
-            : 'Never scanned'}
-        </span>
-        <Button variant="secondary" size="sm" onClick={onRescan} className="gap-1.5 h-7 text-xs">
-          <RefreshCcw className="h-3.5 w-3.5" /> Re-scan
-        </Button>
-      </div>
-    </div>
-  )
-}
-
-// ── Section 2: Social Media Presence ─────────────────────────
-
-function SocialPresenceSection({ accounts }: { accounts: SocialAccount[] }) {
-  if (accounts.length === 0) {
-    return (
-      <EmptyState
-        icon={<Instagram className="h-10 w-10" />}
-        title="No social accounts connected"
-        description="Connect your Instagram, Facebook, or YouTube to see your presence score."
-        action={<Link href="/settings/accounts"><Button size="sm">Connect accounts</Button></Link>}
-      />
-    )
-  }
-
-  return (
-    <div>
-      <h3 className="text-xs font-bold uppercase tracking-widest text-[var(--color-text-4)] mb-4">Social media presence</h3>
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {accounts.map((acc) => {
-          const metrics = acc.metrics[0]
-          const completeness = completenessScore(acc)
-          const verdict = completeness >= 80 ? 'Strong' : completeness >= 50 ? 'Needs Work' : 'Weak'
-          const verdictColor = completeness >= 80 ? 'var(--color-success)' : completeness >= 50 ? 'var(--color-warning)' : 'var(--color-danger)'
-
-          return (
-            <div key={acc.id} className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4 space-y-3">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <PlatformIcon platform={acc.platform} size={18} />
-                  <span className="text-sm font-semibold text-[var(--color-text)]">
-                    {acc.platform.charAt(0) + acc.platform.slice(1).toLowerCase()}
-                  </span>
-                </div>
-                <div
-                  className="flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold"
-                  style={{ backgroundColor: `${verdictColor}1A`, color: verdictColor }}
-                >
-                  <div className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: verdictColor }} />
-                  {verdict}
-                </div>
-              </div>
-
-              {acc.handle && (
-                <p className="text-xs text-[var(--color-text-4)]">@{acc.handle}</p>
-              )}
-
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <p className="text-[10px] text-[var(--color-text-4)] uppercase tracking-wide">Followers</p>
-                  <p className="text-base font-bold text-[var(--color-text)] font-mono">
-                    {metrics ? metrics.followers.toLocaleString() : '—'}
-                  </p>
-                </div>
-                <div>
-                  <p className="text-[10px] text-[var(--color-text-4)] uppercase tracking-wide">Engagement</p>
-                  <p className="text-base font-bold text-[var(--color-text)] font-mono">
-                    {metrics ? `${metrics.engagementRate.toFixed(1)}%` : '—'}
-                  </p>
-                </div>
-              </div>
-
-              {/* Profile completeness bar */}
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <span className="text-[10px] text-[var(--color-text-4)]">Profile completeness</span>
-                  <span className="text-[10px] font-semibold text-[var(--color-text-3)]">{completeness}%</span>
-                </div>
-                <div className="h-1.5 rounded-full bg-[var(--color-surface-2)] overflow-hidden">
-                  <div
-                    className="h-full rounded-full transition-all duration-500"
-                    style={{ width: `${completeness}%`, backgroundColor: verdictColor }}
-                  />
-                </div>
-              </div>
-
-              <Link
-                href={`/analytics/${acc.platform.toLowerCase()}`}
-                className="flex items-center gap-1 text-xs text-[var(--color-accent)] hover:underline"
-              >
-                View full analytics <ArrowRight className="h-3 w-3" />
-              </Link>
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
-// ── Section 3: SEO & Search Visibility ────────────────────────
-
-function SEOSection({ intelligence, keywords }: {
-  intelligence: OrgIntelligence | null
-  keywords: KeywordOpportunity[]
-}) {
-  const rankingKeywords = keywords.filter((k) => k.currentRank !== null && k.currentRank <= 10)
-  const opportunityKeywords = keywords.filter((k) => k.currentRank === null || k.currentRank > 20)
-
-  return (
-    <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-      {/* Google presence */}
-      <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
-        <div className="flex items-center gap-2 mb-4">
-          <Search className="h-4 w-4 text-[var(--color-text-3)]" />
-          <h4 className="text-sm font-semibold text-[var(--color-text)]">How you appear on Google</h4>
-        </div>
-
-        <div className="space-y-3">
-          {intelligence?.googlePlacesData?.rating ? (
-            <div className="flex items-center gap-2">
-              <Star className="h-4 w-4 text-[var(--color-warning)]" />
-              <span className="text-sm font-semibold text-[var(--color-text)]">
-                {intelligence.googlePlacesData.rating.toFixed(1)}
-              </span>
-              <span className="text-xs text-[var(--color-text-3)]">
-                ({intelligence.googlePlacesData.userRatingsTotal?.toLocaleString()} reviews)
-              </span>
-            </div>
-          ) : (
-            <p className="text-sm text-[var(--color-text-4)]">Google Business Profile not claimed</p>
-          )}
-
-          {intelligence?.googlePlacesData?.formattedAddress && (
-            <div className="flex items-start gap-2">
-              <MapPin className="h-4 w-4 text-[var(--color-text-4)] mt-0.5 shrink-0" />
-              <p className="text-sm text-[var(--color-text-2)]">{intelligence.googlePlacesData.formattedAddress}</p>
-            </div>
-          )}
-
-          <div className="flex items-center gap-2">
-            <CheckCircle2 className="h-4 w-4 text-[var(--color-success)]" />
-            <span className="text-sm text-[var(--color-text-2)]">
-              {rankingKeywords.length} keywords ranking in top 10
-            </span>
-          </div>
-
-          {(intelligence?.detectedKeywords?.length ?? 0) > 0 && (
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-text-4)] mb-2">You rank for</p>
-              <div className="flex flex-wrap gap-1.5">
-                {intelligence!.detectedKeywords.slice(0, 5).map((kw) => (
-                  <Badge key={kw} variant="outline" className="text-[10px]">{kw}</Badge>
-                ))}
               </div>
             </div>
-          )}
-        </div>
-      </div>
-
-      {/* Keyword Opportunities */}
-      <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <TrendingUp className="h-4 w-4 text-[var(--color-text-3)]" />
-            <h4 className="text-sm font-semibold text-[var(--color-text)]">Keyword opportunities</h4>
-          </div>
-          <Link href="/studio/seo">
-            <Button variant="ghost" size="sm" className="h-6 text-xs gap-1">
-              View all <ExternalLink className="h-3 w-3" />
-            </Button>
-          </Link>
-        </div>
-
-        {opportunityKeywords.length === 0 ? (
-          <p className="text-sm text-[var(--color-text-4)]">Running keyword analysis...</p>
-        ) : (
-          <div className="space-y-2">
-            {opportunityKeywords.slice(0, 5).map((kw) => (
-              <div key={kw.keyword} className="flex items-center justify-between py-1.5 border-b border-[var(--color-border)] last:border-0">
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-[var(--color-text)] truncate">{kw.keyword}</p>
-                  <p className="text-[10px] text-[var(--color-text-4)]">
-                    ~{kw.searchVolume.toLocaleString()} searches/mo · Difficulty: {kw.difficulty}/100
-                  </p>
-                </div>
-                <Badge
-                  variant="outline"
-                  className={cn('text-[10px] shrink-0 ml-2', kw.category === 'QUICK_WIN' && 'text-[var(--color-success)] border-[var(--color-success)]')}
-                >
-                  {kw.category === 'QUICK_WIN' ? '⚡ Quick win' : kw.category.toLowerCase().replace('_', ' ')}
-                </Badge>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-    </div>
-  )
-}
-
-// ── Section 4: Competitor Snapshot Table ──────────────────────
-
-function CompetitorSnapshotSection({ orgName, orgMetrics, competitors }: {
-  orgName: string
-  orgMetrics: { followers: number; engagementRate: number } | null
-  competitors: Competitor[]
-}) {
-  if (competitors.length === 0) {
-    return (
-      <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
-        <EmptyState
-          icon={<Building2 className="h-8 w-8" />}
-          title="No competitors tracked yet"
-          description="Competitor discovery is running. Check back in a few minutes."
-          action={<Link href="/competitors"><Button size="sm" variant="secondary">View competitors</Button></Link>}
-        />
-      </div>
-    )
-  }
-
-  const allRows = [
-    { name: orgName, followers: orgMetrics?.followers ?? 0, engagementRate: orgMetrics?.engagementRate ?? 0, isOrg: true },
-    ...competitors.map((c) => ({
-      name: c.businessName,
-      followers: c.metrics[0]?.followers ?? 0,
-      engagementRate: c.metrics[0]?.engagementRate ?? 0,
-      isOrg: false,
-    })),
-  ]
-
-  const maxFollowers = Math.max(...allRows.map((r) => r.followers))
-  const orgFollowers = orgMetrics?.followers ?? 0
-  const orgEngagement = orgMetrics?.engagementRate ?? 0
-
-  return (
-    <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden">
-      <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--color-border)] bg-[var(--color-surface-2)]">
-        <h3 className="text-xs font-bold uppercase tracking-widest text-[var(--color-text-3)]">
-          Competitor snapshot
-        </h3>
-        <Link href="/competitors">
-          <Button variant="ghost" size="sm" className="h-7 text-xs gap-1">
-            Full analysis <ChevronRight className="h-3 w-3" />
-          </Button>
-        </Link>
-      </div>
-
-      <div className="overflow-x-auto">
-        <table className="w-full">
-          <thead>
-            <tr className="border-b border-[var(--color-border)]">
-              <th className="px-4 py-2.5 text-left text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-3)]">Organization</th>
-              <th className="px-4 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-3)]">Followers</th>
-              <th className="px-4 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-3)]">Engagement</th>
-              <th className="px-4 py-2.5 text-right text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-3)]">vs You</th>
-            </tr>
-          </thead>
-          <tbody className="divide-y divide-[var(--color-border)]">
-            {allRows.map((row) => {
-              const followersDiff = row.isOrg ? 0 : row.followers - orgFollowers
-              const engagementDiff = row.isOrg ? 0 : row.engagementRate - orgEngagement
-              const isAhead = !row.isOrg && (followersDiff > 0 || engagementDiff > 0.5)
-
-              return (
-                <tr
-                  key={row.name}
-                  className={cn(
-                    'transition-colors hover:bg-[var(--color-surface-2)]',
-                    row.isOrg && 'bg-[var(--color-accent-light)]',
-                  )}
-                >
-                  <td className="px-4 py-3">
-                    <div className="flex items-center gap-2">
-                      <div
-                        className="h-7 w-7 rounded shrink-0 flex items-center justify-center text-xs font-bold text-white"
-                        style={{ backgroundColor: row.isOrg ? 'var(--color-accent)' : 'var(--color-text-4)' }}
-                      >
-                        {row.name.charAt(0).toUpperCase()}
-                      </div>
-                      <div>
-                        <span className="text-sm font-medium text-[var(--color-text)]">{row.name}</span>
-                        {row.isOrg && <span className="ml-1.5 text-[10px] text-[var(--color-accent-text)] font-semibold">YOU</span>}
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <span className="text-sm font-mono text-[var(--color-text-2)]">
-                      {row.followers > 0 ? row.followers.toLocaleString() : '—'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <span className="text-sm font-mono text-[var(--color-text-2)]">
-                      {row.engagementRate > 0 ? `${row.engagementRate.toFixed(1)}%` : '—'}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    {row.isOrg ? (
-                      <span className="text-[10px] text-[var(--color-text-4)]">baseline</span>
-                    ) : (
-                      <div className="flex items-center justify-end gap-1">
-                        {isAhead ? (
-                          <><TrendingUp className="h-3.5 w-3.5 text-[var(--color-danger)]" /><span className="text-xs text-[var(--color-danger)]">Ahead</span></>
-                        ) : (
-                          <><TrendingDown className="h-3.5 w-3.5 text-[var(--color-success)]" /><span className="text-xs text-[var(--color-success)]">Behind</span></>
-                        )}
-                      </div>
-                    )}
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
-    </div>
-  )
-}
-
-// ── Section 5: AI Diagnosis ───────────────────────────────────
-
-function AIDiagnosisSection({ intelligence, onRegenerate, isRegenerating }: {
-  intelligence: OrgIntelligence | null
-  onRegenerate: () => void
-  isRegenerating: boolean
-}) {
-  const strengths = intelligence?.strengths ?? []
-  const urgentIssues = intelligence?.urgentIssues ?? []
-  const quickWins = intelligence?.quickWins ?? []
-
-  if (!intelligence) {
-    return (
-      <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 flex flex-col items-center gap-3">
-        <Loader2 className="h-6 w-6 animate-spin text-[var(--color-accent)]" />
-        <p className="text-sm text-[var(--color-text-3)]">Generating your AI diagnosis...</p>
-      </div>
-    )
-  }
-
-  return (
-    <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden">
-      <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--color-border)] bg-[var(--color-surface-2)]">
-        <div className="flex items-center gap-2">
-          <Sparkles className="h-4 w-4 text-[var(--color-accent)]" />
-          <h3 className="text-xs font-bold uppercase tracking-widest text-[var(--color-text-3)]">AI diagnosis — where you stand</h3>
-        </div>
-        <Button variant="ghost" size="sm" onClick={onRegenerate} disabled={isRegenerating} className="h-7 text-xs gap-1.5">
-          {isRegenerating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCcw className="h-3.5 w-3.5" />}
-          Regenerate
-        </Button>
-      </div>
-
-      <div className="grid grid-cols-1 gap-0 lg:grid-cols-3 divide-y lg:divide-y-0 lg:divide-x divide-[var(--color-border)]">
-        {/* Strengths */}
-        <div className="p-5">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="h-6 w-6 rounded-full bg-[var(--color-success-light)] flex items-center justify-center">
-              <CheckCircle2 className="h-3.5 w-3.5 text-[var(--color-success)]" />
+            <div className="rounded-lg p-3 bg-[var(--color-surface-2)]">
+              <p className="text-[10px] text-[var(--color-text-4)] mb-0.5">Engagement</p>
+              <p className="text-lg font-bold text-[var(--color-text)]">{m.engagementRate.toFixed(1)}%</p>
+              <p className="text-[10px] text-[var(--color-text-4)] mt-0.5">{fmt(m.posts)} posts</p>
             </div>
-            <span className="text-sm font-semibold text-[var(--color-text)]">Your strengths</span>
           </div>
-          <ul className="space-y-2">
-            {strengths.length > 0 ? strengths.map((s, i) => (
-              <li key={i} className="flex items-start gap-2 text-sm text-[var(--color-text-2)]">
-                <span className="mt-1 h-1.5 w-1.5 rounded-full bg-[var(--color-success)] shrink-0" />
-                {s}
-              </li>
-            )) : <p className="text-sm text-[var(--color-text-4)]">Analysis in progress...</p>}
-          </ul>
-        </div>
-
-        {/* Urgent Issues */}
-        <div className="p-5">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="h-6 w-6 rounded-full bg-[var(--color-danger-light)] flex items-center justify-center">
-              <AlertTriangle className="h-3.5 w-3.5 text-[var(--color-danger)]" />
-            </div>
-            <span className="text-sm font-semibold text-[var(--color-text)]">Urgent issues</span>
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div><p className="text-xs font-semibold text-[var(--color-text)]">{fmt(m.avgLikes)}</p><p className="text-[10px] text-[var(--color-text-4)]">Avg likes</p></div>
+            <div><p className="text-xs font-semibold text-[var(--color-text)]">{fmt(m.avgComments)}</p><p className="text-[10px] text-[var(--color-text-4)]">Avg comments</p></div>
+            <div><p className="text-xs font-semibold text-[var(--color-text)]">{fmt(m.reach)}</p><p className="text-[10px] text-[var(--color-text-4)]">Reach</p></div>
           </div>
-          <ul className="space-y-2.5">
-            {urgentIssues.length > 0 ? urgentIssues.map((item, i) => (
-              <li key={i} className="flex items-start justify-between gap-2">
-                <div className="flex items-start gap-2 flex-1 min-w-0">
-                  <span className="mt-1 h-1.5 w-1.5 rounded-full bg-[var(--color-danger)] shrink-0" />
-                  <span className="text-sm text-[var(--color-text-2)]">{item.issue}</span>
-                </div>
-                {item.actionLink && (
-                  <Link href={item.actionLink} className="text-[10px] text-[var(--color-accent)] whitespace-nowrap hover:underline shrink-0">
-                    Fix →
-                  </Link>
-                )}
-              </li>
-            )) : <p className="text-sm text-[var(--color-text-4)]">No critical issues found!</p>}
-          </ul>
+        </>
+      ) : (
+        <div className="flex flex-col items-center py-4 gap-2">
+          <Icon className="h-8 w-8 text-[var(--color-text-4)]" />
+          <p className="text-xs text-[var(--color-text-4)] text-center">No metrics yet</p>
         </div>
+      )}
 
-        {/* Quick Wins */}
-        <div className="p-5">
-          <div className="flex items-center gap-2 mb-3">
-            <div className="h-6 w-6 rounded-full bg-[var(--color-warning-light)] flex items-center justify-center">
-              <Zap className="h-3.5 w-3.5 text-[var(--color-warning)]" />
-            </div>
-            <span className="text-sm font-semibold text-[var(--color-text)]">Quick wins</span>
-          </div>
-          <ul className="space-y-2.5">
-            {quickWins.length > 0 ? quickWins.map((item, i) => (
-              <li key={i} className="space-y-0.5">
-                <div className="flex items-start gap-2">
-                  <span className="mt-1 h-1.5 w-1.5 rounded-full bg-[var(--color-warning)] shrink-0" />
-                  <span className="text-sm text-[var(--color-text-2)]">{item.action}</span>
-                </div>
-                {item.impact && (
-                  <p className="text-[10px] text-[var(--color-success)] ml-3.5">{item.impact}</p>
-                )}
-              </li>
-            )) : <p className="text-sm text-[var(--color-text-4)]">Calculating quick wins...</p>}
-          </ul>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-// ── Section 6: 30-Day Roadmap Preview ────────────────────────
-
-function RoadmapSection({ playbookSummary }: { playbookSummary: PlaybookSummary | null }) {
-  const weeks = playbookSummary?.roadmap?.weeks ?? []
-
-  if (weeks.length === 0) {
-    return (
-      <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-6">
-        <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-2">
-            <Calendar className="h-4 w-4 text-[var(--color-text-3)]" />
-            <h3 className="text-sm font-semibold text-[var(--color-text)]">30-day roadmap</h3>
-          </div>
-        </div>
-        <EmptyState
-          icon={<Calendar className="h-8 w-8" />}
-          title="Building your roadmap"
-          description="Your 30-day action plan is being generated. Check back in a few minutes."
-          action={<Link href="/studio/calendar"><Button size="sm" variant="secondary">View calendar</Button></Link>}
-        />
-      </div>
-    )
-  }
-
-  return (
-    <div className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
-      <div className="flex items-center justify-between mb-5">
-        <div className="flex items-center gap-2">
-          <Calendar className="h-4 w-4 text-[var(--color-text-3)]" />
-          <h3 className="text-sm font-semibold text-[var(--color-text)]">30-day roadmap preview</h3>
-        </div>
-        <Link href="/studio/calendar">
-          <Button variant="secondary" size="sm" className="h-7 text-xs gap-1">
-            View full calendar <ArrowRight className="h-3 w-3" />
-          </Button>
-        </Link>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        {weeks.slice(0, 4).map((week) => (
-          <div key={week.week} className="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-2)] p-3">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-[var(--color-accent)] mb-1">Week {week.week}</p>
-            <p className="text-xs font-semibold text-[var(--color-text)] mb-2">{week.theme}</p>
-            <ul className="space-y-1.5">
-              {week.actions.slice(0, 3).map((action, i) => (
-                <li key={i} className="flex items-start gap-1.5">
-                  <span className="mt-0.5 h-1 w-1 rounded-full bg-[var(--color-text-4)] shrink-0" />
-                  <span className="text-[11px] text-[var(--color-text-3)]">{action.action}</span>
-                </li>
-              ))}
-              {week.actions.length > 3 && (
-                <li className="text-[10px] text-[var(--color-text-4)]">+{week.actions.length - 3} more</li>
-              )}
-            </ul>
-          </div>
-        ))}
-      </div>
+      {data.profileUrl && (
+        <a href={data.profileUrl} target="_blank" rel="noopener noreferrer"
+          className="flex items-center gap-1.5 text-[11px] text-[var(--color-text-4)] hover:text-[var(--color-accent)] transition-colors">
+          <ExternalLink className="h-3 w-3" /> View profile
+        </a>
+      )}
     </div>
   )
 }
@@ -743,133 +197,443 @@ function RoadmapSection({ playbookSummary }: { playbookSummary: PlaybookSummary 
 
 export default function SummaryPage() {
   const { activeOrg } = useOrgStore()
-  const queryClient = useQueryClient()
   const orgId = activeOrg?.id ?? ''
+  const queryClient = useQueryClient()
 
-  const { data: intelligence, isLoading: intelLoading } = useQuery({
-    queryKey: ['org-intelligence', orgId],
+  const { data: intel, isLoading: intelLoading } = useQuery({
+    queryKey: ['intelligence', orgId],
     queryFn: () => apiClient.get<OrgIntelligence>(`/api/orgs/${orgId}/intelligence`),
     enabled: !!orgId,
-    refetchInterval: (query) => (query.state.data ? false : 5000),
+    staleTime: 1000 * 60 * 60,
+    retry: false,
   })
 
-  const { data: playbookData } = useQuery({
-    queryKey: ['playbook-summary', orgId],
-    queryFn: () => apiClient.get<{ content: PlaybookSummary }>(`/api/orgs/${orgId}/playbook/summary`),
+  const { data: overviewData, isLoading: metricsLoading } = useQuery({
+    queryKey: ['metrics-overview', orgId],
+    queryFn: () => apiClient.get<{ overview: PlatformOverview[] }>('/api/metrics/overview?days=30'),
     enabled: !!orgId,
+    staleTime: 1000 * 60 * 5,
+    retry: false,
   })
 
-  const { data: accounts = [] } = useQuery({
-    queryKey: ['social-accounts-summary', orgId],
-    queryFn: () => apiClient.get<SocialAccount[]>(`/api/orgs/${orgId}/accounts/summary`),
+  const { data: competitorData, isLoading: compLoading } = useQuery({
+    queryKey: ['competitors', orgId],
+    queryFn: () => apiClient.get<{ competitors: Competitor[] }>('/api/competitors?status=CONFIRMED'),
     enabled: !!orgId,
+    staleTime: 1000 * 60 * 60,
+    retry: false,
   })
 
-  const { data: competitors = [] } = useQuery({
-    queryKey: ['competitors-summary', orgId],
-    queryFn: () => apiClient.get<Competitor[]>(`/api/orgs/${orgId}/competitors?format=discovery&status=CONFIRMED`),
+  const { data: keywordsRaw } = useQuery({
+    queryKey: ['keywords', orgId],
+    queryFn: () => apiClient.get<KeywordOpportunity[]>(`/api/orgs/${orgId}/keywords?limit=8`),
     enabled: !!orgId,
+    staleTime: 1000 * 60 * 60,
+    retry: false,
   })
 
-  const { data: keywords = [] } = useQuery({
-    queryKey: ['keywords-summary', orgId],
-    queryFn: () => apiClient.get<KeywordOpportunity[]>(`/api/orgs/${orgId}/keywords?limit=10`),
+  const today = new Date()
+  const fromDate = today.toISOString().split('T')[0]!
+  const toDate = new Date(today.getTime() + 7 * 86400000).toISOString().split('T')[0]!
+  const { data: calData } = useQuery({
+    queryKey: ['cal-preview', orgId],
+    queryFn: () => apiClient.get<{ posts: CalendarPost[] }>(`/api/calendar?from=${fromDate}&to=${toDate}`),
     enabled: !!orgId,
+    staleTime: 1000 * 60 * 5,
+    retry: false,
   })
 
-  const rescanMutation = useMutation({
-    mutationFn: () => apiClient.post(`/api/orgs/${orgId}/jobs/intelligence`),
+  const researchMutation = useMutation({
+    mutationFn: () => apiClient.post<{ success: boolean }>(`/api/orgs/${orgId}/research`),
     onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: ['org-intelligence', orgId] })
+      void queryClient.invalidateQueries({ queryKey: ['intelligence', orgId] })
+      void queryClient.invalidateQueries({ queryKey: ['competitors', orgId] })
+      void queryClient.invalidateQueries({ queryKey: ['keywords', orgId] })
+      void queryClient.invalidateQueries({ queryKey: ['metrics-overview', orgId] })
+      toast.success('Research complete — all sections updated with fresh data')
     },
+    onError: () => toast.error('Research failed. Check ANTHROPIC_API_KEY on Render.'),
   })
 
-  const regenerateMutation = useMutation({
-    mutationFn: () => apiClient.post(`/api/orgs/${orgId}/jobs/org-summary`),
-    onSuccess: () => {
-      setTimeout(() => {
-        void queryClient.invalidateQueries({ queryKey: ['org-intelligence', orgId] })
-        void queryClient.invalidateQueries({ queryKey: ['playbook-summary', orgId] })
-      }, 5000)
-    },
-  })
-
-  // Aggregate org metrics from social accounts
-  const orgMetrics = accounts.length > 0
-    ? {
-        followers: accounts.reduce((sum, a) => sum + (a.metrics[0]?.followers ?? 0), 0),
-        engagementRate:
-          accounts.reduce((sum, a) => sum + (a.metrics[0]?.engagementRate ?? 0), 0) /
-          Math.max(1, accounts.length),
-      }
-    : null
-
-  if (!orgId) {
-    return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <div className="flex items-center gap-3 text-[var(--color-text-3)]">
-          <Loader2 className="h-5 w-5 animate-spin" />
-          <span>Loading...</span>
-        </div>
-      </div>
-    )
-  }
+  const isLoading = intelLoading || metricsLoading || compLoading
+  const platforms = overviewData?.overview ?? []
+  const competitors = competitorData?.competitors ?? []
+  const keywords = Array.isArray(keywordsRaw) ? (keywordsRaw as KeywordOpportunity[]) : []
+  const posts = calData?.posts ?? []
+  const score = intel?.presenceScore ?? 0
+  const diagnosis = typeof (intel?.aiDiagnosis as Record<string, unknown> | null)?.['description'] === 'string'
+    ? (intel!.aiDiagnosis as Record<string, unknown>)['description'] as string
+    : ''
+  const benchmarks = (intel?.aiDiagnosis as Record<string, unknown> | null)?.['benchmarks'] as
+    { avgFollowers: number; avgEngagementRate: number; top10pctFollowers: number } | undefined
+  const totalFollowers = platforms.reduce((s, p) => s + (p.latest?.followers ?? 0), 0)
+  const hasEstimated = platforms.some((p) => p.isEstimated && p.latest)
 
   return (
-    <div className="space-y-8 px-7 py-7 max-w-[1280px] mx-auto">
-      <PageHeader
-        title="Organization summary"
-        description={`A full snapshot of ${activeOrg?.name ?? 'your organization'}'s online presence.`}
-        actions={
-          <Button
-            variant="secondary"
-            size="sm"
-            onClick={() => rescanMutation.mutate()}
-            disabled={rescanMutation.isPending}
-            className="gap-1.5"
-          >
-            {rescanMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCcw className="h-4 w-4" />}
-            Re-scan
-          </Button>
-        }
-      />
-
-      {/* Section 1: Business Identity */}
-      {activeOrg && (
-        <BusinessIdentitySection
-          org={activeOrg}
-          intelligence={intelligence ?? null}
-          onRescan={() => rescanMutation.mutate()}
+    <div className="px-7 py-7 max-w-[1280px] mx-auto space-y-8">
+      {/* Header */}
+      <div className="flex items-start justify-between gap-4">
+        <PageHeader
+          title="Business Summary"
+          description="AI-powered intelligence report — presence score, competitors, SEO, and content calendar"
+          icon={<Brain className="h-5 w-5" />}
         />
+        <Button variant="outline" size="sm" className="gap-2 shrink-0 mt-1"
+          disabled={researchMutation.isPending} onClick={() => researchMutation.mutate()}>
+          {researchMutation.isPending
+            ? <><Loader2 className="h-4 w-4 animate-spin" /> Researching…</>
+            : <><RefreshCcw className="h-4 w-4" /> Refresh</>}
+        </Button>
+      </div>
+
+      {/* Loading */}
+      {isLoading && (
+        <div className="flex flex-col items-center justify-center py-28 gap-5">
+          <div className="relative h-16 w-16">
+            <div className="absolute inset-0 rounded-full border-4 border-[var(--color-border)]" />
+            <div className="absolute inset-0 rounded-full border-4 border-[var(--color-accent)] border-t-transparent animate-spin" />
+            <Brain className="absolute inset-0 m-auto h-6 w-6 text-[var(--color-accent)]" />
+          </div>
+          <div className="text-center">
+            <p className="text-sm font-semibold text-[var(--color-text-2)]">Claude AI is researching your business…</p>
+            <p className="text-xs text-[var(--color-text-4)] mt-1">Finding competitors, keywords, and calculating your presence score</p>
+          </div>
+        </div>
       )}
 
-      {/* Section 2: Social Media Presence */}
-      <div>
-        <SocialPresenceSection accounts={accounts} />
-      </div>
+      {!isLoading && (
+        <>
+          {/* Estimated banner */}
+          {hasEstimated && (
+            <div className="rounded-lg border border-[var(--color-accent)]/30 bg-[var(--color-accent)]/5 px-4 py-3 flex items-center gap-3">
+              <Brain className="h-4 w-4 text-[var(--color-accent)] shrink-0" />
+              <p className="text-xs text-[var(--color-text-2)] flex-1">
+                <span className="font-semibold text-[var(--color-accent)]">AI-estimated metrics</span> — Claude has generated baseline estimates from industry knowledge.
+                Connect accounts via OAuth or configure Apify for live data.
+              </p>
+              <Link href="/settings" className="shrink-0">
+                <Button variant="outline" size="sm" className="text-xs h-7">Connect accounts</Button>
+              </Link>
+            </div>
+          )}
 
-      {/* Section 3: SEO & Search */}
-      <div>
-        <h3 className="text-xs font-bold uppercase tracking-widest text-[var(--color-text-4)] mb-4">SEO & search visibility</h3>
-        <SEOSection intelligence={intelligence ?? null} keywords={keywords} />
-      </div>
+          {/* Row 1: Score + Org Info */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            {/* Presence Score */}
+            <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 flex flex-col items-center gap-4">
+              <p className="text-[10px] font-semibold uppercase tracking-widest text-[var(--color-text-4)]">Digital Presence Score</p>
+              <PresenceArc score={score} />
+              {benchmarks && (
+                <div className="w-full space-y-2 pt-3 border-t border-[var(--color-border)]">
+                  {[
+                    ['Industry avg followers', fmt(benchmarks.avgFollowers)],
+                    ['Industry avg engagement', `${benchmarks.avgEngagementRate}%`],
+                    ['Top 10% threshold', fmt(benchmarks.top10pctFollowers)],
+                  ].map(([label, val]) => (
+                    <div key={label} className="flex justify-between text-[11px]">
+                      <span className="text-[var(--color-text-4)]">{label}</span>
+                      <span className="font-semibold text-[var(--color-text)]">{val}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
 
-      {/* Section 4: Competitor Snapshot */}
-      <CompetitorSnapshotSection
-        orgName={activeOrg?.name ?? ''}
-        orgMetrics={orgMetrics}
-        competitors={competitors}
-      />
+            {/* Org Info */}
+            <div className="lg:col-span-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-6 flex flex-col gap-4">
+              <div className="flex items-start gap-4">
+                <div className="h-14 w-14 rounded-xl bg-[var(--color-accent)]/10 flex items-center justify-center shrink-0">
+                  <Building2 className="h-7 w-7 text-[var(--color-accent)]" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h2 className="text-xl font-bold text-[var(--color-text)] truncate">{activeOrg?.name}</h2>
+                  <div className="flex flex-wrap gap-1.5 mt-1.5">
+                    {activeOrg?.industry && <Badge variant="outline" className="text-[10px]">{activeOrg.industry}</Badge>}
+                    {(activeOrg as { city?: string } | null)?.city && (
+                      <Badge variant="outline" className="text-[10px] gap-1">
+                        <MapPin className="h-2.5 w-2.5" />{(activeOrg as { city?: string }).city}
+                      </Badge>
+                    )}
+                    {activeOrg?.activePlatforms?.map((p) => <Badge key={p} variant="outline" className="text-[10px]">{p}</Badge>)}
+                  </div>
+                </div>
+              </div>
 
-      {/* Section 5: AI Diagnosis */}
-      <AIDiagnosisSection
-        intelligence={intelligence ?? null}
-        onRegenerate={() => regenerateMutation.mutate()}
-        isRegenerating={regenerateMutation.isPending}
-      />
+              {diagnosis && <p className="text-sm text-[var(--color-text-2)] leading-relaxed">{diagnosis}</p>}
 
-      {/* Section 6: 30-Day Roadmap */}
-      <RoadmapSection playbookSummary={playbookData?.content ?? null} />
+              <div className="grid grid-cols-3 gap-3 pt-3 border-t border-[var(--color-border)]">
+                {[
+                  { val: fmt(totalFollowers), label: 'Total followers' },
+                  { val: String(competitors.length), label: 'Competitors' },
+                  { val: String(keywords.length), label: 'SEO keywords' },
+                ].map(({ val, label }) => (
+                  <div key={label} className="text-center">
+                    <p className="text-xl font-bold text-[var(--color-text)]">{val}</p>
+                    <p className="text-[10px] text-[var(--color-text-4)]">{label}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Row 2: Platform Cards */}
+          {platforms.length > 0 && (
+            <section>
+              <h3 className="text-xs font-semibold uppercase tracking-widest text-[var(--color-text-4)] mb-3">Social Platforms</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {platforms.map((p) => <PlatformCard key={p.platform} data={p} />)}
+              </div>
+            </section>
+          )}
+
+          {/* Row 3: Strengths / Issues / Quick Wins */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {/* Strengths */}
+            <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="h-7 w-7 rounded-lg bg-green-500/10 flex items-center justify-center">
+                  <Award className="h-4 w-4 text-green-500" />
+                </div>
+                <h3 className="text-sm font-semibold text-[var(--color-text)]">Strengths</h3>
+              </div>
+              <ul className="space-y-2.5">
+                {(intel?.strengths ?? []).slice(0, 4).map((s, i) => (
+                  <li key={i} className="flex items-start gap-2 text-xs text-[var(--color-text-2)]">
+                    <CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0 mt-0.5" />
+                    {s}
+                  </li>
+                ))}
+                {!intel?.strengths?.length && <li className="text-xs text-[var(--color-text-4)]">Click Refresh to analyse strengths</li>}
+              </ul>
+            </div>
+
+            {/* Urgent Issues */}
+            <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="h-7 w-7 rounded-lg bg-red-500/10 flex items-center justify-center">
+                  <AlertTriangle className="h-4 w-4 text-red-500" />
+                </div>
+                <h3 className="text-sm font-semibold text-[var(--color-text)]">Urgent Issues</h3>
+              </div>
+              <ul className="space-y-2.5">
+                {(intel?.urgentIssues ?? []).slice(0, 4).map((item, i) => (
+                  <li key={i}>
+                    <Link href={item.actionLink ?? '#'}
+                      className="flex items-start gap-2 text-xs text-[var(--color-text-2)] hover:text-[var(--color-accent)] transition-colors group">
+                      <AlertTriangle className="h-3.5 w-3.5 text-red-400 shrink-0 mt-0.5" />
+                      <span>{item.issue}</span>
+                      <ChevronRight className="h-3 w-3 ml-auto shrink-0 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </Link>
+                  </li>
+                ))}
+                {!intel?.urgentIssues?.length && <li className="text-xs text-green-600">No urgent issues detected</li>}
+              </ul>
+            </div>
+
+            {/* Quick Wins */}
+            <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-5">
+              <div className="flex items-center gap-2 mb-4">
+                <div className="h-7 w-7 rounded-lg bg-[var(--color-accent)]/10 flex items-center justify-center">
+                  <Lightbulb className="h-4 w-4 text-[var(--color-accent)]" />
+                </div>
+                <h3 className="text-sm font-semibold text-[var(--color-text)]">Quick Wins</h3>
+              </div>
+              <ul className="space-y-3">
+                {(intel?.quickWins ?? []).slice(0, 3).map((item, i) => (
+                  <li key={i} className="space-y-0.5">
+                    <p className="text-xs font-medium text-[var(--color-text)]">{item.action}</p>
+                    <p className="text-[10px] text-[var(--color-text-4)]">→ {item.impact}</p>
+                  </li>
+                ))}
+                {!intel?.quickWins?.length && <li className="text-xs text-[var(--color-text-4)]">Click Refresh to get quick wins</li>}
+              </ul>
+            </div>
+          </div>
+
+          {/* Row 4: Competitors Table */}
+          {competitors.length > 0 && (
+            <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden">
+              <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--color-border)]">
+                <div className="flex items-center gap-2">
+                  <Target className="h-4 w-4 text-[var(--color-accent)]" />
+                  <h3 className="text-sm font-semibold text-[var(--color-text)]">Competitor Landscape</h3>
+                  <Badge variant="outline" className="text-[9px]">{competitors.length} tracked</Badge>
+                </div>
+                <Link href="/competitors">
+                  <Button variant="ghost" size="sm" className="text-xs gap-1 h-7">View all <ArrowRight className="h-3 w-3" /></Button>
+                </Link>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="bg-[var(--color-surface-2)]">
+                      {['Competitor', 'Platform', 'Followers', 'Engagement', 'Avg Likes'].map((h, i) => (
+                        <th key={h} className={cn('py-2.5 font-semibold text-[var(--color-text-4)] uppercase tracking-wider text-[10px]', i === 0 ? 'text-left px-5' : i < 2 ? 'text-left px-4' : 'text-right px-4 last:px-5')}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--color-border)]">
+                    {competitors.slice(0, 8).map((c) => {
+                      const cfg = PLATFORM_CFG[c.platform]
+                      const Icon = cfg?.Icon
+                      const m = c.latestMetrics
+                      const myFollowers = platforms.find((p) => p.platform === c.platform)?.latest?.followers ?? 0
+                      const theyLead = m && myFollowers > 0 && m.followers > myFollowers
+                      return (
+                        <tr key={c.id} className="hover:bg-[var(--color-surface-2)] transition-colors">
+                          <td className="px-5 py-3">
+                            <div className="flex items-center gap-2.5">
+                              <div className="h-7 w-7 rounded-full bg-[var(--color-surface-2)] flex items-center justify-center text-[10px] font-bold text-[var(--color-text-4)]">
+                                {(c.name || c.handle).slice(0, 2).toUpperCase()}
+                              </div>
+                              <div>
+                                <p className="font-medium text-[var(--color-text)]">{c.name || c.handle}</p>
+                                <p className="text-[10px] text-[var(--color-text-4)]">@{c.handle}</p>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3">
+                            {Icon && cfg && (
+                              <div className="flex items-center gap-1.5">
+                                <Icon className="h-3.5 w-3.5" style={{ color: cfg.color }} />
+                                <span className="text-[var(--color-text-3)]">{cfg.label}</span>
+                              </div>
+                            )}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <span className="font-semibold text-[var(--color-text)]">{m ? fmt(m.followers) : '—'}</span>
+                              {theyLead && <TrendingUp className="h-3 w-3 text-red-400" />}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-right text-[var(--color-text-2)]">{m ? `${m.engagementRate.toFixed(1)}%` : '—'}</td>
+                          <td className="px-5 py-3 text-right text-[var(--color-text-2)]">{m ? fmt(m.avgLikes) : '—'}</td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+              <p className="px-5 py-2.5 text-[10px] text-[var(--color-text-4)] border-t border-[var(--color-border)] bg-[var(--color-surface-2)]">
+                AI-estimated competitor data. <Link href="/competitors" className="text-[var(--color-accent)] hover:underline">Review and confirm</Link> competitors to refine analysis.
+              </p>
+            </section>
+          )}
+
+          {/* Row 5: SEO Keywords + Upcoming Posts */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            {/* SEO */}
+            <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden">
+              <div className="flex items-center gap-2 px-5 py-4 border-b border-[var(--color-border)]">
+                <Search className="h-4 w-4 text-[var(--color-accent)]" />
+                <h3 className="text-sm font-semibold text-[var(--color-text)]">SEO Opportunities</h3>
+              </div>
+              {keywords.length > 0 ? (
+                <div className="divide-y divide-[var(--color-border)]">
+                  {keywords.map((kw, i) => {
+                    const d = diffLabel(kw.difficulty)
+                    return (
+                      <div key={i} className="flex items-center justify-between px-5 py-3 hover:bg-[var(--color-surface-2)] transition-colors">
+                        <div className="flex items-center gap-3">
+                          <span className="h-5 w-5 rounded bg-[var(--color-surface-2)] flex items-center justify-center text-[9px] font-bold text-[var(--color-text-4)]">{i + 1}</span>
+                          <p className="text-xs text-[var(--color-text)]">{kw.keyword}</p>
+                        </div>
+                        <div className="flex items-center gap-3">
+                          <span className="text-[10px] text-[var(--color-text-4)]">{fmt(kw.searchVolume)}/mo</span>
+                          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded" style={{ color: d.color, background: `${d.color}18` }}>{d.label}</span>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <div className="px-5 py-8 flex flex-wrap gap-2">
+                  {(intel?.detectedKeywords ?? []).map((kw, i) => (
+                    <Badge key={i} variant="outline" className="text-[11px]">{kw}</Badge>
+                  ))}
+                  {!intel?.detectedKeywords?.length && (
+                    <p className="text-xs text-[var(--color-text-4)]">Click Refresh to generate SEO keywords</p>
+                  )}
+                </div>
+              )}
+            </section>
+
+            {/* Upcoming Calendar */}
+            <section className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden">
+              <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--color-border)]">
+                <div className="flex items-center gap-2">
+                  <Calendar className="h-4 w-4 text-[var(--color-accent)]" />
+                  <h3 className="text-sm font-semibold text-[var(--color-text)]">Next 7 Days</h3>
+                </div>
+                <Link href="/studio/calendar">
+                  <Button variant="ghost" size="sm" className="text-xs gap-1 h-7">Calendar <ArrowRight className="h-3 w-3" /></Button>
+                </Link>
+              </div>
+              {posts.length > 0 ? (
+                <div className="divide-y divide-[var(--color-border)]">
+                  {posts.slice(0, 7).map((post) => {
+                    const cfg = PLATFORM_CFG[post.platform]
+                    const Icon = cfg?.Icon
+                    const d = new Date(post.date)
+                    const dateStr = d.toLocaleDateString('en', { weekday: 'short', month: 'short', day: 'numeric' })
+                    return (
+                      <div key={post.id} className="flex items-center gap-3 px-5 py-3 hover:bg-[var(--color-surface-2)] transition-colors">
+                        {Icon && cfg && (
+                          <div className="h-7 w-7 rounded-lg shrink-0 flex items-center justify-center" style={{ background: cfg.bg }}>
+                            <Icon className="h-3.5 w-3.5" style={{ color: cfg.color }} />
+                          </div>
+                        )}
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs text-[var(--color-text)] truncate">{post.topic}</p>
+                          <p className="text-[10px] text-[var(--color-text-4)]">{dateStr} · {post.format}</p>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              ) : (
+                <div className="flex flex-col items-center py-10 gap-3 px-5 text-center">
+                  <Calendar className="h-8 w-8 text-[var(--color-text-4)]" />
+                  <p className="text-xs text-[var(--color-text-4)]">No posts scheduled for the next 7 days</p>
+                  <Link href="/studio/calendar">
+                    <Button size="sm" className="gap-1.5 text-xs h-7">
+                      <Sparkles className="h-3.5 w-3.5" /> Generate calendar
+                    </Button>
+                  </Link>
+                </div>
+              )}
+            </section>
+          </div>
+
+          {/* Bottom CTA */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {[
+              { icon: <BarChart3 className="h-5 w-5" />, title: 'Analytics', desc: 'Platform-specific metrics and trends', href: '/analytics/overview', color: '#6366F1' },
+              { icon: <Sparkles className="h-5 w-5" />, title: 'AI Studio', desc: 'Generate posts, scripts, and blog content', href: '/studio/posts', color: '#EC4899' },
+              { icon: <Target className="h-5 w-5" />, title: 'Competitors', desc: 'Track and analyse your competition', href: '/competitors', color: '#F59E0B' },
+            ].map((item) => (
+              <Link key={item.href} href={item.href}>
+                <div className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 flex items-center gap-3 hover:border-[var(--color-accent)]/40 hover:bg-[var(--color-surface-2)] transition-all cursor-pointer group">
+                  <div className="h-9 w-9 rounded-lg flex items-center justify-center shrink-0" style={{ background: `${item.color}18`, color: item.color }}>
+                    {item.icon}
+                  </div>
+                  <div>
+                    <p className="text-sm font-semibold text-[var(--color-text)]">{item.title}</p>
+                    <p className="text-[11px] text-[var(--color-text-4)]">{item.desc}</p>
+                  </div>
+                  <ArrowRight className="h-4 w-4 ml-auto text-[var(--color-text-4)] group-hover:text-[var(--color-accent)] transition-colors" />
+                </div>
+              </Link>
+            ))}
+          </div>
+
+          {intel?.lastScannedAt && (
+            <p className="text-center text-[10px] text-[var(--color-text-4)]">
+              Last researched: {new Date(intel.lastScannedAt).toLocaleString('en', { dateStyle: 'medium', timeStyle: 'short' })}
+            </p>
+          )}
+        </>
+      )}
     </div>
   )
 }

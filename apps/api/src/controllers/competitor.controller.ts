@@ -2,6 +2,7 @@ import type { Response } from 'express'
 import type { AuthRequest } from '../middleware/auth'
 import { prisma } from '../lib/prisma'
 import { competitorSyncQueue, competitorDiscoveryQueue } from '../lib/queue'
+import { deepResearchOrg } from '../services/intelligence/deepResearchService'
 import {
   getInstagramCompetitorPosts,
   getFacebookCompetitorPosts,
@@ -63,7 +64,7 @@ export async function listCompetitors(req: AuthRequest, res: Response): Promise<
 
   const statusFilter = req.query['status'] as string | undefined
 
-  const competitors = await prisma.competitor.findMany({
+  let competitors = await prisma.competitor.findMany({
     where: {
       orgId: id,
       ...(statusFilter ? { status: statusFilter as 'PENDING' | 'CONFIRMED' | 'DISMISSED' } : {}),
@@ -71,6 +72,20 @@ export async function listCompetitors(req: AuthRequest, res: Response): Promise<
     include: { metrics: { orderBy: { snapshotDate: 'desc' }, take: 2 } },
     orderBy: [{ relevanceScore: 'desc' }, { addedAt: 'asc' }],
   })
+
+  // Auto-generate via Claude if empty (first load)
+  if (competitors.length === 0 && !statusFilter) {
+    try {
+      await deepResearchOrg(id)
+      competitors = await prisma.competitor.findMany({
+        where: { orgId: id },
+        include: { metrics: { orderBy: { snapshotDate: 'desc' }, take: 2 } },
+        orderBy: [{ relevanceScore: 'desc' }, { addedAt: 'asc' }],
+      })
+    } catch (err) {
+      console.warn('[competitors] deepResearch auto-generate failed:', (err as Error).message)
+    }
+  }
 
   // For onboarding step 3: return raw format with v2 fields
   if (req.query['format'] === 'discovery') {
@@ -83,7 +98,7 @@ export async function listCompetitors(req: AuthRequest, res: Response): Promise<
       address: c.address,
       website: c.website,
       relevanceScore: c.relevanceScore,
-      discoveryReason: c.discoveryReason ?? 'Auto-discovered competitor',
+      discoveryReason: c.discoveryReason ?? 'AI-discovered competitor',
       status: c.status,
     })))
     return
@@ -179,17 +194,22 @@ export async function rediscoverCompetitors(req: AuthRequest, res: Response): Pr
 
   const org = await prisma.organization.findUnique({
     where: { id },
-    select: { id: true, name: true, industry: true, city: true, country: true, website: true },
+    select: { id: true },
   })
   if (!org) { res.status(404).json({ error: 'Organization not found' }); return }
 
-  await competitorDiscoveryQueue.add(
-    'manual-rediscover',
-    { orgId: id, orgName: org.name, industry: org.industry, city: org.city ?? '', website: org.website ?? undefined },
-    { priority: 2 },
-  )
-
-  res.json({ data: { message: 'Competitor discovery queued. Results will appear shortly.' } })
+  // Run deep research synchronously — populates competitors immediately
+  try {
+    await deepResearchOrg(id)
+    const competitors = await prisma.competitor.findMany({
+      where: { orgId: id },
+      include: { metrics: { orderBy: { snapshotDate: 'desc' }, take: 2 } },
+      orderBy: [{ relevanceScore: 'desc' }],
+    })
+    res.json({ data: { competitors: competitors.map(mapCompetitor), message: `Found ${competitors.length} competitors via AI research.` } })
+  } catch (err) {
+    res.status(500).json({ error: 'Research failed', message: (err as Error).message })
+  }
 }
 
 // ── Update competitor status (confirm / dismiss) ──────────────

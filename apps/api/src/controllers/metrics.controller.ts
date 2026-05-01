@@ -54,11 +54,16 @@ export async function getOverviewMetrics(req: AuthRequest, res: Response): Promi
       ? ((latest.followers - oldest.followers) / oldest.followers) * 100
       : 0
 
+    const isEstimated = latest
+      ? (latest.rawJson as { isEstimated?: boolean } | null)?.isEstimated === true
+      : false
+
     return {
       platform: account.platform,
       handle: account.handle,
       profileUrl: account.profileUrl,
       connectedAt: account.connectedAt,
+      isEstimated,
       latest: latest
         ? {
             followers: latest.followers,
