@@ -294,7 +294,7 @@ export default function ReputationPage() {
                   <p className="text-sm text-[var(--color-text-2)]">{reputation.responseRecommendation}</p>
                 </div>
 
-                {reputation.topThemes.length > 0 && (
+                {(reputation.topThemes?.length ?? 0) > 0 && (
                   <div>
                     <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-text-4)] mb-2">
                       Recurring Themes
@@ -352,7 +352,7 @@ export default function ReputationPage() {
           </div>
 
           {/* ── Recent Reviews ── */}
-          {reputation.recentReviews.length > 0 && (
+          {(reputation.recentReviews?.length ?? 0) > 0 && (
             <div>
               <div className="flex items-center justify-between mb-4">
                 <h2 className="text-sm font-bold text-[var(--color-text)] flex items-center gap-2">
@@ -360,7 +360,7 @@ export default function ReputationPage() {
                   Recent Reviews
                 </h2>
                 <Badge variant="outline" className="text-xs">
-                  {reputation.recentReviews.length} reviews
+                  {reputation.recentReviews?.length ?? 0} reviews
                 </Badge>
               </div>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">

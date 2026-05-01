@@ -291,12 +291,12 @@ export default function DashboardPage() {
               />
             )}
 
-            {ops && ops.recommendations.length > 0 && (
+            {ops && (ops.recommendations?.length ?? 0) > 0 && (
               <div className="mt-4 space-y-1 border-t border-[var(--color-border)] pt-3">
                 <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-4)] mb-2">
                   Top Recommendations
                 </p>
-                {ops.recommendations.slice(0, 2).map((rec, i) => (
+                {(ops.recommendations ?? []).slice(0, 2).map((rec, i) => (
                   <p key={i} className="text-xs text-[var(--color-text-2)]">{rec}</p>
                 ))}
               </div>
@@ -345,7 +345,7 @@ export default function DashboardPage() {
                   ))}
                 </div>
 
-                {reputation.topThemes.length > 0 && (
+                {(reputation.topThemes?.length ?? 0) > 0 && (
                   <div>
                     <p className="text-[10px] font-semibold uppercase tracking-wider text-[var(--color-text-4)] mb-2">
                       Top Themes
@@ -396,12 +396,12 @@ export default function DashboardPage() {
                 {brief.summary && (
                   <p className="text-sm text-[var(--color-text-2)] line-clamp-3">{brief.summary}</p>
                 )}
-                {brief.actionItems.length > 0 && (
+                {(brief.actionItems?.length ?? 0) > 0 && (
                   <div className="space-y-1.5">
                     <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--color-text-4)]">
                       Today&apos;s Actions
                     </p>
-                    {brief.actionItems.slice(0, 3).map((item, i) => (
+                    {(brief.actionItems ?? []).slice(0, 3).map((item, i) => (
                       <div key={i} className="flex items-start gap-2 rounded-lg bg-surface-2 px-3 py-2">
                         <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-accent text-white text-[10px] font-bold">
                           {i + 1}
