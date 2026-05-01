@@ -1,38 +1,12 @@
 /**
- * AI Service — all Claude API calls go through here.
- * Never expose ANTHROPIC_API_KEY to the frontend.
+ * AI Service — all Gemini API calls go through here.
+ * Routes all requests through the centralized Gemini router.
+ * Never expose GEMINI_API_KEY to the frontend.
  */
 
-import Anthropic from '@anthropic-ai/sdk'
+import { ask, askJSON, flash } from '../../lib/ai/gemini'
 import { prisma } from '../../lib/prisma'
 import { Platform, Prisma } from '@prisma/client'
-
-const MODEL = 'claude-sonnet-4-20250514'
-
-function getClient(): Anthropic {
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) throw new Error('ANTHROPIC_API_KEY not configured')
-  return new Anthropic({ apiKey })
-}
-
-async function ask(prompt: string, systemPrompt?: string): Promise<string> {
-  const client = getClient()
-  const msg = await client.messages.create({
-    model: MODEL,
-    max_tokens: 2048,
-    system: systemPrompt ?? 'You are a social media strategy expert. Always respond with valid JSON when asked.',
-    messages: [{ role: 'user', content: prompt }],
-  })
-  const block = msg.content[0]
-  if (!block || block.type !== 'text') throw new Error('No text response from Claude')
-  return block.text
-}
-
-function parseJSON<T>(text: string): T {
-  const match = text.match(/```json\s*([\s\S]*?)\s*```/) ?? text.match(/(\{[\s\S]*\}|\[[\s\S]*\])/)
-  const raw = match ? match[1] ?? match[0] : text
-  return JSON.parse(raw.trim()) as T
-}
 
 /**
  * Generic completion — for services that build their own prompts.
@@ -40,16 +14,11 @@ function parseJSON<T>(text: string): T {
  */
 export const aiService = {
   async complete(prompt: string, maxTokens = 1024): Promise<string> {
-    const client = getClient()
-    const msg = await client.messages.create({
-      model: MODEL,
-      max_tokens: maxTokens,
-      system: 'You are a helpful expert assistant. Respond concisely and accurately. When asked for JSON, return only valid JSON with no markdown fences.',
-      messages: [{ role: 'user', content: prompt }],
+    return ask(prompt, {
+      model: maxTokens <= 512 ? 'flash' : 'pro',
+      maxTokens,
+      systemPrompt: 'You are a helpful expert assistant. Respond concisely and accurately. When asked for JSON, return only valid JSON with no markdown fences.',
     })
-    const block = msg.content[0]
-    if (!block || block.type !== 'text') throw new Error('No text response from Claude')
-    return block.text
   },
 }
 
@@ -94,8 +63,7 @@ export async function generateGapAnalysis(orgId: string): Promise<GapAnalysisRes
     avgComments: c.metrics[0]?.avgComments ?? 0,
   }))
 
-  const prompt = `
-Analyze this social media competitive landscape and generate a gap analysis for "${org.name}" (industry: ${org.industry}).
+  const prompt = `Analyze this social media competitive landscape and generate a gap analysis for "${org.name}" (industry: ${org.industry}).
 
 YOUR ORG METRICS:
 ${JSON.stringify(orgMetrics, null, 2)}
@@ -112,10 +80,9 @@ Return a JSON object with this exact structure:
   "competitiveMoat": [{"strength": "local audience trust", "description": "why you should double down here"}]
 }
 
-Return ONLY the JSON, no markdown.`
+Return ONLY valid JSON, no markdown.`
 
-  const text = await ask(prompt)
-  const result = parseJSON<GapAnalysisResult>(text)
+  const result = await askJSON<GapAnalysisResult>(prompt, { model: 'pro', maxTokens: 2048 })
 
   await prisma.playbookSection.upsert({
     where: { orgId_sectionType: { orgId, sectionType: 'STRATEGY' } },
@@ -150,8 +117,7 @@ export async function generateContentIdeas(orgId: string, count = 5): Promise<Co
 
   if (!org) throw new Error('Organization not found')
 
-  const prompt = `
-Generate ${count} unique content ideas for "${org.name}" (industry: ${org.industry}).
+  const prompt = `Generate ${count} unique content ideas for "${org.name}" (industry: ${org.industry}).
 
 PLATFORMS: ${org.activePlatforms.join(', ')}
 CONTENT PILLARS: ${pillars.map((p) => `${p.title}: ${p.description}`).join('\n')}
@@ -163,8 +129,7 @@ Return a JSON array:
 
 Return ONLY the JSON array.`
 
-  const text = await ask(prompt)
-  return parseJSON<ContentIdea[]>(text)
+  return askJSON<ContentIdea[]>(prompt, { model: 'flash', maxTokens: 1024 })
 }
 
 // ── 3. Playbook Section ───────────────────────────────────────
@@ -180,7 +145,8 @@ export async function generatePlaybookSection(orgId: string, sectionType: string
 
   if (!org) throw new Error('Organization not found')
 
-  const prompt = `
+  const prompt = `You are a senior social media strategist writing a brand playbook. Be specific and actionable.
+
 Write a "${sectionType}" section for the social media playbook of "${org.name}" (${org.industry}).
 
 CONTEXT:
@@ -192,7 +158,7 @@ CONTEXT:
 
 Write 3-5 paragraphs of actionable, specific strategy content for this section. Return plain text (no JSON).`
 
-  const text = await ask(prompt, 'You are a senior social media strategist writing a brand playbook. Be specific and actionable.')
+  const text = await ask(prompt, { model: 'pro', maxTokens: 2048 })
 
   await prisma.playbookSection.upsert({
     where: { orgId_sectionType: { orgId, sectionType: sectionType as 'BRAND_VOICE' | 'STRATEGY' | 'POSTING_GUIDE' | 'OUTREACH' } },
@@ -229,7 +195,8 @@ export async function generateDailyBrief(orgId: string): Promise<void> {
     return { handle: c.handle, platform: c.platform, followersDelta: latest && prev ? latest.followers - prev.followers : 0, followers: latest?.followers ?? 0 }
   }).filter((c) => Math.abs(c.followersDelta) > 100)
 
-  const prompt = `
+  const prompt = `You are a social media manager writing a daily team brief. Be concise, motivating, and specific.
+
 Write a brief morning summary (3-5 sentences) for "${org.name}"'s social media team.
 
 TODAY'S SCHEDULED POSTS: ${calendarToday.length > 0 ? calendarToday.map((p) => `${p.platform}: ${p.topic}`).join(', ') : 'None scheduled'}
@@ -239,7 +206,7 @@ COMPETITOR ALERTS: ${competitorContext.length > 0 ? competitorContext.map((c) =>
 
 Write a motivating, actionable brief. Return plain text only.`
 
-  const summary = await ask(prompt, 'You are a social media manager writing a daily team brief. Be concise, motivating, and specific.')
+  const summary = await ask(prompt, { model: 'flash', maxTokens: 512 })
 
   const ideaResult = await generateContentIdeas(orgId, 1)
   const ideaOfDay = ideaResult[0]?.captionStarter ?? null
@@ -282,8 +249,7 @@ export async function generatePersona(orgId: string, demographics: { ageRange?: 
   const org = await prisma.organization.findUnique({ where: { id: orgId } })
   if (!org) throw new Error('Organization not found')
 
-  const prompt = `
-Create a detailed audience persona for "${org.name}" (${org.industry}).
+  const prompt = `Create a detailed audience persona for "${org.name}" (${org.industry}).
 Demographics hint: age ${demographics.ageRange ?? 'any'}, gender ${demographics.gender ?? 'any'}, location ${demographics.location ?? 'any'}.
 
 Return JSON:
@@ -291,8 +257,7 @@ Return JSON:
 
 Return ONLY the JSON.`
 
-  const text = await ask(prompt)
-  return parseJSON<GeneratedPersona>(text)
+  return askJSON<GeneratedPersona>(prompt, { model: 'flash', maxTokens: 512 })
 }
 
 // ── 6. Brand Voice ────────────────────────────────────────────
@@ -315,8 +280,7 @@ export async function generateBrandVoice(orgId: string): Promise<GeneratedBrandV
 
   if (!org) throw new Error('Organization not found')
 
-  const prompt = `
-Generate a brand voice profile for "${org.name}" (${org.industry}).
+  const prompt = `Generate a brand voice profile for "${org.name}" (${org.industry}).
 Target audience: ${personas.map((p) => `${p.name}, ${p.ageRange}`).join('; ')}
 Active platforms: ${org.activePlatforms.join(', ')}
 
@@ -325,8 +289,7 @@ Return JSON:
 
 Return ONLY the JSON.`
 
-  const text = await ask(prompt)
-  return parseJSON<GeneratedBrandVoice>(text)
+  return askJSON<GeneratedBrandVoice>(prompt, { model: 'pro', maxTokens: 1024 })
 }
 
 // ── 7. Post Generator (3 variations) ─────────────────────────
@@ -352,8 +315,7 @@ export async function generateSocialPosts(
   ])
   if (!org) throw new Error('Organization not found')
 
-  const prompt = `
-Generate 3 distinct social media post variations for "${org.name}" (${org.industry}) for ${params.platform}.
+  const prompt = `Generate 3 distinct social media post variations for "${org.name}" (${org.industry}) for ${params.platform}.
 
 Topic: ${params.topic}
 Tone: ${params.tone ?? (voice?.adjectives as string[] | null)?.[0] ?? 'professional'}
@@ -366,8 +328,7 @@ Return JSON array of 3 objects:
 
 Return ONLY the JSON array.`
 
-  const text = await ask(prompt)
-  return parseJSON<GeneratedPost[]>(text)
+  return askJSON<GeneratedPost[]>(prompt, { model: 'pro', maxTokens: 2048 })
 }
 
 // ── 8. Video / Reel Script Generator ─────────────────────────
@@ -389,7 +350,8 @@ export async function generateVideoScript(
   if (!org) throw new Error('Organization not found')
 
   const isShort = params.platform === 'INSTAGRAM' || params.duration === '60s'
-  const prompt = `
+  const prompt = `You are an expert video script writer for social media. Write punchy, engaging scripts optimized for the platform.
+
 Write a ${isShort ? '30-60 second short-form' : '3-5 minute YouTube'} video script for "${org.name}" (${org.industry}).
 
 Topic: ${params.topic}
@@ -401,8 +363,7 @@ Return JSON:
 
 Return ONLY the JSON.`
 
-  const text = await ask(prompt, 'You are an expert video script writer for social media. Write punchy, engaging scripts optimized for the platform.')
-  return parseJSON<VideoScript>(text)
+  return askJSON<VideoScript>(prompt, { model: 'pro', maxTokens: 2048 })
 }
 
 // ── 9. Blog / Article Writer ──────────────────────────────────
@@ -433,8 +394,7 @@ export async function generateBlogOutline(
   const org = await prisma.organization.findUnique({ where: { id: orgId } })
   if (!org) throw new Error('Organization not found')
 
-  const prompt = `
-Create a detailed SEO blog outline for "${org.name}" (${org.industry}).
+  const prompt = `Create a detailed SEO blog outline for "${org.name}" (${org.industry}).
 
 Topic: ${params.topic}
 Target keywords: ${(params.keywords ?? []).join(', ')}
@@ -445,8 +405,7 @@ Return JSON:
 
 Return ONLY the JSON.`
 
-  const text = await ask(prompt)
-  return parseJSON<BlogOutline>(text)
+  return askJSON<BlogOutline>(prompt, { model: 'pro', maxTokens: 1024 })
 }
 
 export async function generateBlogDraft(
@@ -456,7 +415,8 @@ export async function generateBlogDraft(
   const org = await prisma.organization.findUnique({ where: { id: orgId } })
   if (!org) throw new Error('Organization not found')
 
-  const prompt = `
+  const prompt = `You are an expert SEO content writer. Write engaging, well-structured blog posts optimized for search engines.
+
 Write a complete SEO-optimized blog post for "${org.name}" (${org.industry}).
 
 Title: ${params.outline.title}
@@ -473,12 +433,8 @@ Return JSON:
 
 Return ONLY the JSON.`
 
-  const text = await ask(prompt, 'You are an expert SEO content writer. Write engaging, well-structured blog posts optimized for search engines.')
-  return parseJSON<BlogDraft>(text)
+  return askJSON<BlogDraft>(prompt, { model: 'pro', maxTokens: 4096 })
 }
-
-// ── 10. AI Diagnosis (Org Summary) ───────────────────────────
-// (implemented in onboarding.worker.ts orgSummaryWorker — exposed via /summary page)
 
 // ── 11. Smart Calendar Generator ─────────────────────────────
 
@@ -514,7 +470,8 @@ export async function generateSmartCalendar(
   const platforms = params.platforms ?? org.activePlatforms
   const daysInMonth = new Date(params.year, params.month, 0).getDate()
 
-  const prompt = `
+  const prompt = `You are a social media content calendar expert. Create varied, engaging content that aligns with the brand.
+
 Generate a 30-day social media content calendar for "${org.name}" (${org.industry}).
 
 Month: ${new Date(params.year, params.month - 1).toLocaleString('en', { month: 'long' })} ${params.year}
@@ -529,8 +486,7 @@ Return JSON array. For each post:
 
 Return ONLY the JSON array.`
 
-  const text = await ask(prompt, 'You are a social media content calendar expert. Create varied, engaging content that aligns with the brand.')
-  return parseJSON<CalendarPost[]>(text)
+  return askJSON<CalendarPost[]>(prompt, { model: 'pro', maxTokens: 4096 })
 }
 
 // ── 12. SEO Content Brief ─────────────────────────────────────
@@ -554,8 +510,7 @@ export async function generateSEOBrief(
   const org = await prisma.organization.findUnique({ where: { id: orgId } })
   if (!org) throw new Error('Organization not found')
 
-  const prompt = `
-Create a detailed SEO content brief for "${org.name}" (${org.industry}).
+  const prompt = `Create a detailed SEO content brief for "${org.name}" (${org.industry}).
 
 Target keyword: ${params.keyword}
 Business city: ${org.city ?? 'India'}
@@ -566,8 +521,7 @@ Return JSON:
 
 Return ONLY the JSON.`
 
-  const text = await ask(prompt)
-  return parseJSON<SEOBrief>(text)
+  return askJSON<SEOBrief>(prompt, { model: 'pro', maxTokens: 1024 })
 }
 
 // ── 13. Trending Content Ideas ────────────────────────────────
@@ -599,7 +553,8 @@ export async function generateTrendingIdeas(
   const count = params.count ?? 10
   const platform = params.platform ?? 'ALL'
 
-  const prompt = `
+  const prompt = `You are a viral content strategist. Identify trends and translate them into actionable content ideas for local businesses.
+
 Generate ${count} trending content ideas for "${org.name}" (${org.industry}) targeting ${platform} platform.
 
 Current trending topics/hashtags: ${trendingTopics.map((t) => `${t.topic} (delta: ${t.trendDelta}%)`).join(', ')}
@@ -613,6 +568,5 @@ Return JSON array:
 
 Return ONLY the JSON array.`
 
-  const text = await ask(prompt, 'You are a viral content strategist. Identify trends and translate them into actionable content ideas for local businesses.')
-  return parseJSON<TrendingIdea[]>(text)
+  return askJSON<TrendingIdea[]>(prompt, { model: 'pro', maxTokens: 2048 })
 }

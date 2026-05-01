@@ -6,15 +6,13 @@
  *   1. SerpAPI      (SERPAPI_KEY)          — Google Search results
  *   2. Firecrawl    (FIRECRAWL_API_KEY)    — deep website crawling
  *   3. Tavily       (TAVILY_API_KEY)       — AI-native search
- *   4. Claude       (ANTHROPIC_API_KEY)    — always available fallback
+ *   4. Gemini       (GEMINI_API_KEY)       — always available fallback
  *
  * All results are normalised into WebMentionResult[] so callers
  * never need to know which source was used.
  */
 
-import Anthropic from '@anthropic-ai/sdk'
-
-const MODEL = 'claude-sonnet-4-20250514'
+import { askJSON, flash } from '../../lib/ai/gemini'
 
 // ── Public types ──────────────────────────────────────────────
 
@@ -147,13 +145,9 @@ export async function crawlWebsite(url: string): Promise<{ title: string; descri
   }
 }
 
-// ── Claude fallback ───────────────────────────────────────────
+// ── Gemini fallback ───────────────────────────────────────────
 
-async function searchWithClaude(orgName: string, industry: string, city: string): Promise<WebMentionResult[]> {
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) return []
-
-  const client = new Anthropic({ apiKey })
+async function searchWithGemini(orgName: string, industry: string, city: string): Promise<WebMentionResult[]> {
   const prompt = `Generate a realistic web presence analysis for "${orgName}", a ${industry} business in ${city}, India.
 
 Based on your knowledge, describe the likely online mentions and web presence for this type of business.
@@ -174,24 +168,14 @@ Return a JSON array of 8-10 web mentions (realistic URLs from actual websites th
 Include sources like: Google Business, Justdial, Sulekha, IndiaMart, industry directories, local news, review sites.
 Return ONLY the JSON array.`
 
-  const msg = await client.messages.create({
-    model: MODEL,
-    max_tokens: 2048,
-    messages: [{ role: 'user', content: prompt }],
-  })
-
-  const text = (msg.content[0] as { text?: string })?.text ?? ''
-  const match = text.match(/\[[\s\S]*\]/)
-  if (!match) return []
-
   try {
-    return JSON.parse(match[0]) as WebMentionResult[]
+    return await askJSON<WebMentionResult[]>(prompt, { model: 'pro', maxTokens: 2048 })
   } catch {
     return []
   }
 }
 
-// ── Sentiment analysis via Claude ─────────────────────────────
+// ── Sentiment analysis via Gemini ─────────────────────────────
 
 async function enrichSentiment(
   mentions: WebMentionResult[],
@@ -199,14 +183,10 @@ async function enrichSentiment(
 ): Promise<WebMentionResult[]> {
   if (mentions.length === 0) return mentions
 
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) return mentions
-
   // Only analyse mentions that still have neutral sentiment from scraping
   const toAnalyse = mentions.filter((m) => m.sentiment === 'neutral').slice(0, 15)
   if (toAnalyse.length === 0) return mentions
 
-  const client = new Anthropic({ apiKey })
   const prompt = `Analyse the sentiment of these web mentions about "${orgName}". For each, return the sentiment and type.
 
 Mentions:
@@ -218,16 +198,10 @@ Return JSON array (same order):
 Return ONLY the JSON array.`
 
   try {
-    const msg = await client.messages.create({
-      model: MODEL,
-      max_tokens: 512,
-      messages: [{ role: 'user', content: prompt }],
-    })
-    const text = (msg.content[0] as { text?: string })?.text ?? ''
-    const match = text.match(/\[[\s\S]*\]/)
-    if (!match) return mentions
-
-    const enriched = JSON.parse(match[0]) as Array<{ sentiment: string; type: string; relevanceScore: number }>
+    const enriched = await askJSON<Array<{ sentiment: string; type: string; relevanceScore: number }>>(
+      prompt,
+      { model: 'flash', maxTokens: 512 },
+    )
     let idx = 0
     return mentions.map((m) => {
       if (m.sentiment !== 'neutral') return m
@@ -268,8 +242,8 @@ export async function analyseWebPresence(
   } else if (tavilyResults.status === 'fulfilled' && tavilyResults.value.length > 0) {
     mentions = tavilyResults.value
   } else {
-    // Claude fallback — always works
-    mentions = await searchWithClaude(orgName, industry, city)
+    // Gemini fallback — always works
+    mentions = await searchWithGemini(orgName, industry, city)
   }
 
   // Enrich sentiment via Claude
@@ -309,34 +283,19 @@ export async function analyseWebPresence(
     : 'very low'
 
   // Generate AI summary
-  const apiKey = process.env.ANTHROPIC_API_KEY
   let summary = `${orgName} has ${visibility} online visibility with ${mentions.length} web mentions found.`
   let onlineReputation = 'Moderate online reputation with room for improvement.'
 
-  if (apiKey) {
-    const client = new Anthropic({ apiKey })
+  try {
     const summaryPrompt = `Write a 2-sentence online presence summary for "${orgName}" (${industry}, ${city}).
 Stats: ${mentions.length} web mentions, ${positiveCount} positive, ${negativeCount} negative, ${sentimentScore}/100 sentiment score.
 Top sources: ${topSources.join(', ')}.
 Return plain text only.`
+    summary = await flash(summaryPrompt, 200)
 
-    try {
-      const msg = await client.messages.create({
-        model: MODEL,
-        max_tokens: 200,
-        messages: [{ role: 'user', content: summaryPrompt }],
-      })
-      summary = (msg.content[0] as { text?: string })?.text?.trim() ?? summary
-
-      const repPrompt = `In one sentence, describe the online reputation of "${orgName}" based on ${sentimentScore}/100 sentiment score and ${negativeCount} negative mentions out of ${mentions.length} total. Be specific.`
-      const repMsg = await client.messages.create({
-        model: MODEL,
-        max_tokens: 100,
-        messages: [{ role: 'user', content: repPrompt }],
-      })
-      onlineReputation = (repMsg.content[0] as { text?: string })?.text?.trim() ?? onlineReputation
-    } catch { /* use defaults */ }
-  }
+    const repPrompt = `In one sentence, describe the online reputation of "${orgName}" based on ${sentimentScore}/100 sentiment score and ${negativeCount} negative mentions out of ${mentions.length} total. Be specific.`
+    onlineReputation = await flash(repPrompt, 100)
+  } catch { /* use defaults */ }
 
   return {
     mentionCount: mentions.length,

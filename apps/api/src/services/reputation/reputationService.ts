@@ -11,10 +11,8 @@
  */
 
 import { prisma } from '../../lib/prisma'
-import Anthropic from '@anthropic-ai/sdk'
+import { askJSON } from '../../lib/ai/gemini'
 import type { Prisma } from '@prisma/client'
-
-const MODEL = 'claude-sonnet-4-20250514'
 
 export interface ReviewItem {
   source: string
@@ -103,16 +101,13 @@ async function fetchSerpReviews(orgName: string, city: string): Promise<ReviewIt
 
 // ── Claude AI reputation synthesis ───────────────────────────
 
-async function synthesiseWithClaude(
+async function synthesiseWithGemini(
   orgName: string,
   industry: string,
   city: string,
   placesData: { rating: number; totalReviews: number } | null,
   existingReviews: ReviewItem[],
 ): Promise<ReputationReport> {
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  const client = new Anthropic({ apiKey })
-
   const knownRating = placesData?.rating
   const knownCount = placesData?.totalReviews ?? 0
 
@@ -147,19 +142,9 @@ Generate a realistic, detailed reputation report. Return ONLY a JSON object:
 Generate 5-8 realistic reviews. Return ONLY the JSON object.`
 
   try {
-    const msg = await client.messages.create({
-      model: MODEL,
-      max_tokens: 2500,
-      messages: [{ role: 'user', content: prompt }],
-    })
-    const text = (msg.content[0] as { text?: string })?.text ?? ''
-    const match = text.match(/\{[\s\S]*\}/)
-    if (!match) throw new Error('No JSON in response')
-
-    const report = JSON.parse(match[0]) as ReputationReport
+    const report = await askJSON<ReputationReport>(prompt, { model: 'pro', maxTokens: 2500 })
     report.fetchedAt = new Date().toISOString()
     report.sources = ['google.com', 'justdial.com']
-
     return report
   } catch {
     // Ultimate fallback
@@ -204,8 +189,8 @@ export async function analyseReputation(orgId: string): Promise<ReputationReport
   const places = placesData.status === 'fulfilled' ? placesData.value : null
   const reviews = serpReviews.status === 'fulfilled' ? serpReviews.value : []
 
-  // Synthesise with Claude
-  const report = await synthesiseWithClaude(name, ind, loc, places, reviews)
+  // Synthesise with Gemini
+  const report = await synthesiseWithGemini(name, ind, loc, places, reviews)
 
   // Persist to OrgIntelligence
   const googlePlacesData = places

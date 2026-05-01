@@ -15,10 +15,7 @@
  */
 
 import { prisma } from '../../lib/prisma'
-import Anthropic from '@anthropic-ai/sdk'
 import type { Prisma } from '@prisma/client'
-
-const MODEL = 'claude-sonnet-4-20250514'
 
 export interface OPSBreakdown {
   overall: number

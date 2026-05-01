@@ -15,7 +15,7 @@
     "start:prod": "prisma migrate deploy && node dist/index.js"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.32.1",
+    "@google/generative-ai": "^0.21.0",
     "@prisma/client": "^5.20.0",
     "@socialpulse/shared": "workspace:*",
     "bcryptjs": "^2.4.3",

@@ -1,8 +1,8 @@
 /**
  * Deep Research Service
  *
- * Uses Claude API to comprehensively research any organisation.
- * No Apify / OAuth / external API keys required beyond ANTHROPIC_API_KEY.
+ * Uses Gemini AI to comprehensively research any organisation.
+ * No Apify / OAuth / external API keys required beyond GEMINI_API_KEY.
  *
  * Generates and persists:
  *  • OrgIntelligence  — presence score, strengths, issues, quick wins
@@ -16,7 +16,7 @@
  *  • GET  /api/competitors            (auto-runs when empty)
  */
 
-import Anthropic from '@anthropic-ai/sdk'
+import { askJSON } from '../../lib/ai/gemini'
 import { prisma } from '../../lib/prisma'
 import {
   Platform,
@@ -26,7 +26,6 @@ import {
   type Prisma as PrismaTypes,
 } from '@prisma/client'
 
-const MODEL = 'claude-sonnet-4-20250514'
 const STALE_HOURS = 24
 
 // ── Types returned by Claude ──────────────────────────────────
@@ -91,11 +90,6 @@ export async function isResearchStale(orgId: string): Promise<boolean> {
 // ── Main export ───────────────────────────────────────────────
 
 export async function deepResearchOrg(orgId: string): Promise<void> {
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) throw new Error('ANTHROPIC_API_KEY not configured')
-
-  const client = new Anthropic({ apiKey })
-
   // Load org with social accounts and pillars
   const org = await prisma.organization.findUniqueOrThrow({
     where: { id: orgId },
@@ -187,21 +181,11 @@ RULES:
 • All numbers must be realistic integers. No made-up huge numbers.
 • Return ONLY valid JSON — no markdown fences, no extra text.`
 
-  const msg = await client.messages.create({
-    model: MODEL,
-    max_tokens: 4096,
-    system: 'You are a social media intelligence analyst with deep knowledge of Indian businesses, industries, and social media benchmarks. Always return valid JSON with realistic, specific data.',
-    messages: [{ role: 'user', content: prompt }],
+  const data = await askJSON<ResearchResult>(prompt, {
+    model: 'pro',
+    maxTokens: 4096,
+    systemPrompt: 'You are a social media intelligence analyst with deep knowledge of Indian businesses, industries, and social media benchmarks. Always return valid JSON with realistic, specific data.',
   })
-
-  const block = msg.content[0]
-  if (!block || block.type !== 'text') throw new Error('No response from Claude')
-
-  // Parse JSON (handle occasional markdown fences)
-  const raw = block.text.trim()
-  const jsonMatch = raw.match(/```json\s*([\s\S]*?)\s*```/) ?? raw.match(/(\{[\s\S]*\})/)
-  const jsonStr = jsonMatch ? (jsonMatch[1] ?? jsonMatch[0]) : raw
-  const data = JSON.parse(jsonStr.trim()) as ResearchResult
 
   const today = new Date()
   today.setUTCHours(0, 0, 0, 0)
@@ -219,7 +203,7 @@ RULES:
       aiDiagnosis: {
         description: data.description,
         benchmarks: data.industryBenchmarks,
-        generatedBy: 'claude-deep-research',
+        generatedBy: 'gemini-deep-research',
       } as unknown as PrismaTypes.InputJsonValue,
       presenceScore: Math.min(100, Math.max(0, data.presenceScore ?? 30)),
       lastScannedAt: new Date(),
@@ -232,7 +216,7 @@ RULES:
       aiDiagnosis: {
         description: data.description,
         benchmarks: data.industryBenchmarks,
-        generatedBy: 'claude-deep-research',
+        generatedBy: 'gemini-deep-research',
       } as unknown as PrismaTypes.InputJsonValue,
       presenceScore: Math.min(100, Math.max(0, data.presenceScore ?? 30)),
       lastScannedAt: new Date(),

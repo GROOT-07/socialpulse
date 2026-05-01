@@ -10,9 +10,7 @@
  */
 
 import { prisma } from '../../lib/prisma'
-import Anthropic from '@anthropic-ai/sdk'
-
-const MODEL = 'claude-sonnet-4-20250514'
+import { askJSON } from '../../lib/ai/gemini'
 
 export interface TrendResult {
   topic: string
@@ -93,18 +91,13 @@ async function fetchTavilyTrends(industry: string, city: string): Promise<TrendR
   }
 }
 
-// ── Claude fallback ────────────────────────────────────────────
+// ── Gemini fallback ────────────────────────────────────────────
 
-async function fetchClaudeTrends(
+async function fetchGeminiTrends(
   orgName: string,
   industry: string,
   city: string,
 ): Promise<TrendResult[]> {
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) return []
-
-  const client = new Anthropic({ apiKey })
-
   const prompt = `You are a digital marketing analyst. Generate 10 trending topics for a "${industry}" business in ${city}, India named "${orgName}".
 
 For each trend, also write a short post draft (2-3 sentences) the business could publish.
@@ -133,22 +126,13 @@ Rules:
 Return ONLY the JSON array.`
 
   try {
-    const msg = await client.messages.create({
-      model: MODEL,
-      max_tokens: 3000,
-      messages: [{ role: 'user', content: prompt }],
-    })
-
-    const text = (msg.content[0] as { text?: string })?.text ?? ''
-    const match = text.match(/\[[\s\S]*\]/)
-    if (!match) return []
-    return JSON.parse(match[0]) as TrendResult[]
+    return await askJSON<TrendResult[]>(prompt, { model: 'pro', maxTokens: 3000 })
   } catch {
     return []
   }
 }
 
-// ── Enrich post drafts via Claude ─────────────────────────────
+// ── Enrich post drafts via Gemini ─────────────────────────────
 
 async function enrichPostDrafts(
   trends: TrendResult[],
@@ -158,10 +142,6 @@ async function enrichPostDrafts(
   const needsDraft = trends.filter((t) => !t.suggestedPostDraft)
   if (needsDraft.length === 0) return trends
 
-  const apiKey = process.env.ANTHROPIC_API_KEY
-  if (!apiKey) return trends
-
-  const client = new Anthropic({ apiKey })
   const prompt = `Write short social media post drafts (2-3 sentences each) for "${orgName}" (${industry} business) for these trending topics:
 
 ${needsDraft.map((t, i) => `${i + 1}. ${t.topic}`).join('\n')}
@@ -172,16 +152,7 @@ Return a JSON array of strings (same order):
 Return ONLY the JSON array.`
 
   try {
-    const msg = await client.messages.create({
-      model: MODEL,
-      max_tokens: 1500,
-      messages: [{ role: 'user', content: prompt }],
-    })
-    const text = (msg.content[0] as { text?: string })?.text ?? ''
-    const match = text.match(/\[[\s\S]*\]/)
-    if (!match) return trends
-    const drafts = JSON.parse(match[0]) as string[]
-
+    const drafts = await askJSON<string[]>(prompt, { model: 'flash', maxTokens: 1500 })
     let idx = 0
     return trends.map((t) => {
       if (t.suggestedPostDraft) return t
@@ -220,15 +191,15 @@ export async function discoverTrends(orgId: string): Promise<TrendResult[]> {
     trends = tavilyResults.value
   }
 
-  // Claude always provides — combine if we have partial results
-  const claudeResults = await fetchClaudeTrends(name, ind, loc)
-  if (claudeResults.length > 0) {
+  // Gemini always provides — combine if we have partial results
+  const geminiResults = await fetchGeminiTrends(name, ind, loc)
+  if (geminiResults.length > 0) {
     if (trends.length === 0) {
-      trends = claudeResults
+      trends = geminiResults
     } else {
-      // Merge: claude fills gaps up to 15 total
+      // Merge: Gemini fills gaps up to 15 total
       const existing = new Set(trends.map((t) => t.topic.toLowerCase()))
-      const extras = claudeResults.filter((t) => !existing.has(t.topic.toLowerCase()))
+      const extras = geminiResults.filter((t) => !existing.has(t.topic.toLowerCase()))
       trends = [...trends, ...extras].slice(0, 15)
     }
   }

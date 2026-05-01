@@ -26,7 +26,7 @@ const ENV_CHECKS: EnvCheck[] = [
   { key: 'GOOGLE_CLIENT_SECRET',required: false, feature: 'YouTube OAuth' },
 
   // ── AI ────────────────────────────────────────────────────
-  { key: 'ANTHROPIC_API_KEY',   required: false, feature: 'Claude AI (strategy, ideas, brief)' },
+  { key: 'GEMINI_API_KEY',      required: false, feature: 'Gemini AI (strategy, ideas, brief)' },
 
   // ── Competitor data ───────────────────────────────────────
   { key: 'DATA365_API_KEY',     required: false, feature: 'Competitor intelligence (Data365)' },
