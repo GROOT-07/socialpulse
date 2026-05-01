@@ -181,7 +181,7 @@ export default function ReputationPage() {
         title="Reputation"
         description="Online reviews, sentiment analysis, and brand perception across the web."
         icon={<Shield className="h-5 w-5" />}
-        action={
+        actions={
           <Button
             variant="secondary"
             size="sm"
