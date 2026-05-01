@@ -146,7 +146,7 @@ function PlatformCard({ data }: { data: PlatformOverview }) {
             {data.handle && <p className="text-[11px] text-[var(--color-text-4)]">@{data.handle}</p>}
           </div>
         </div>
-        <Badge variant="outline" className={cn('text-[9px]', data.isEstimated ? 'border-[var(--color-border)] text-[var(--color-text-4)]' : 'border-green-500/30 text-green-500')}>
+        <Badge variant="secondary" className={cn('text-[9px]', data.isEstimated ? 'border-[var(--color-border)] text-[var(--color-text-4)]' : 'border-green-500/30 text-green-500')}>
           {data.isEstimated ? 'AI estimate' : 'Live data'}
         </Badge>
       </div>
@@ -278,7 +278,7 @@ export default function SummaryPage() {
           description="AI-powered intelligence report — presence score, competitors, SEO, and content calendar"
           icon={<Brain className="h-5 w-5" />}
         />
-        <Button variant="outline" size="sm" className="gap-2 shrink-0 mt-1"
+        <Button variant="secondary" size="sm" className="gap-2 shrink-0 mt-1"
           disabled={researchMutation.isPending} onClick={() => researchMutation.mutate()}>
           {researchMutation.isPending
             ? <><Loader2 className="h-4 w-4 animate-spin" /> Researching…</>
@@ -312,7 +312,7 @@ export default function SummaryPage() {
                 Connect accounts via OAuth or configure Apify for live data.
               </p>
               <Link href="/settings" className="shrink-0">
-                <Button variant="outline" size="sm" className="text-xs h-7">Connect accounts</Button>
+                <Button variant="secondary" size="sm" className="text-xs h-7">Connect accounts</Button>
               </Link>
             </div>
           )}
@@ -348,13 +348,13 @@ export default function SummaryPage() {
                 <div className="flex-1 min-w-0">
                   <h2 className="text-xl font-bold text-[var(--color-text)] truncate">{activeOrg?.name}</h2>
                   <div className="flex flex-wrap gap-1.5 mt-1.5">
-                    {activeOrg?.industry && <Badge variant="outline" className="text-[10px]">{activeOrg.industry}</Badge>}
+                    {activeOrg?.industry && <Badge variant="secondary" className="text-[10px]">{activeOrg.industry}</Badge>}
                     {(activeOrg as { city?: string } | null)?.city && (
-                      <Badge variant="outline" className="text-[10px] gap-1">
+                      <Badge variant="secondary" className="text-[10px] gap-1">
                         <MapPin className="h-2.5 w-2.5" />{(activeOrg as { city?: string }).city}
                       </Badge>
                     )}
-                    {activeOrg?.activePlatforms?.map((p) => <Badge key={p} variant="outline" className="text-[10px]">{p}</Badge>)}
+                    {activeOrg?.activePlatforms?.map((p) => <Badge key={p} variant="secondary" className="text-[10px]">{p}</Badge>)}
                   </div>
                 </div>
               </div>
@@ -457,7 +457,7 @@ export default function SummaryPage() {
                 <div className="flex items-center gap-2">
                   <Target className="h-4 w-4 text-[var(--color-accent)]" />
                   <h3 className="text-sm font-semibold text-[var(--color-text)]">Competitor Landscape</h3>
-                  <Badge variant="outline" className="text-[9px]">{competitors.length} tracked</Badge>
+                  <Badge variant="secondary" className="text-[9px]">{competitors.length} tracked</Badge>
                 </div>
                 <Link href="/competitors">
                   <Button variant="ghost" size="sm" className="text-xs gap-1 h-7">View all <ArrowRight className="h-3 w-3" /></Button>
@@ -549,7 +549,7 @@ export default function SummaryPage() {
               ) : (
                 <div className="px-5 py-8 flex flex-wrap gap-2">
                   {(intel?.detectedKeywords ?? []).map((kw, i) => (
-                    <Badge key={i} variant="outline" className="text-[11px]">{kw}</Badge>
+                    <Badge key={i} variant="secondary" className="text-[11px]">{kw}</Badge>
                   ))}
                   {!intel?.detectedKeywords?.length && (
                     <p className="text-xs text-[var(--color-text-4)]">Click Refresh to generate SEO keywords</p>
