@@ -742,4 +742,5 @@ export interface AITrendingTopic {
 
 export const trendsAiApi = {
   get: () => request<{ topics: AITrendingTopic[]; fromCache: boolean }>('/api/trends/ai'),
-  discover: () => request<{ topics: AITrendingTopic[]; message: string }>('/api/trends/discover', { method
+  discover: () => request<{ topics: AITrendingTopic[]; message: string }>('/api/trends/discover', { method: 'POST' }),
+}
