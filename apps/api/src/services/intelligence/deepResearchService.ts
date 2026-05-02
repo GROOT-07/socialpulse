@@ -1,7 +1,7 @@
 /**
  * Deep Research Service
  *
- * Uses AI to comprehensively research any organisation.
+ * Uses Gemini AI to comprehensively research any organisation.
  * No Apify / OAuth / external API keys required beyond OPENAI_API_KEY.
  *
  * Generates and persists:
@@ -318,49 +318,54 @@ RULES:
   }
 
   // ── 4. Estimated social metrics (only if account has NO real data) ──
-  // Refresh org.socialAccounts list (may have changed since load above)
-  const refreshedAccounts = await prisma.socialAccount.findMany({ where: { orgId } })
-
-  // Derive which platforms to populate: those in estimates + activePlatforms
-  const targetPlatforms = Array.from(
-    new Set([
-      ...(data.platformEstimates ?? []).map((e) => e.platform),
-      ...org.activePlatforms,
-    ])
-  ).filter((p) => VALID_PLATFORMS.includes(p as Platform)) as Platform[]
-
-  // Ensure every target platform has a social account row
-  for (const platform of targetPlatforms) {
-    const exists = refreshedAccounts.find((a) => a.platform === platform)
-    if (!exists) {
-      const handle = org.name.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 30) || 'account'
-      await prisma.socialAccount.create({
-        data: { orgId, platform, handle, connectedAt: new Date() },
-      })
-    }
-  }
-
-  // Re-fetch accounts after potential creation
-  const finalAccounts = await prisma.socialAccount.findMany({ where: { orgId } })
-
-  // Update org.activePlatforms if any new platforms were added
-  const knownPlatforms = finalAccounts.map((a) => a.platform)
-  const newActive = Array.from(new Set([...org.activePlatforms, ...knownPlatforms])) as Platform[]
-  if (newActive.length !== org.activePlatforms.length) {
-    await prisma.organization.update({
-      where: { id: orgId },
-      data: { activePlatforms: newActive },
-    })
-  }
-
-  // Save AI-generated description to the org record if not already set
-  if (data.description && !(org as { description?: string }).description) {
-    await prisma.organization.update({
-      where: { id: orgId },
-      data: { description: data.description } as Record<string, unknown>,
-    }).catch(() => { /* description field may not exist in older schema — ignore */ })
-  }
 
   for (const est of data.platformEstimates ?? []) {
     const platform = VALID_PLATFORMS.includes(est.platform as Platform)
-      ? (est
+      ? (est.platform as Platform)
+      : null
+    if (!platform) continue
+
+    const account = org.socialAccounts.find((a) => a.platform === platform)
+    if (!account) continue
+
+    // Only skip if we have REAL metrics with actual follower counts (> 0).
+    // A 0-follower metric record from a failed API call is treated as empty.
+    const hasRealData = await prisma.socialMetrics.count({
+      where: {
+        socialAccountId: account.id,
+        followers: { gt: 0 },
+        rawJson: { not: { path: ['isEstimated'], equals: true } },
+      },
+    })
+    if (hasRealData > 0) continue // preserve real non-zero data
+
+    const followers = Math.max(0, est.followers ?? 0)
+    const engRate = Math.min(20, Math.max(0, est.engagementRate ?? 0))
+
+    await prisma.socialMetrics.upsert({
+      where: { socialAccountId_snapshotDate: { socialAccountId: account.id, snapshotDate: today } },
+      create: {
+        socialAccountId: account.id,
+        snapshotDate: today,
+        followers,
+        following: Math.round(followers * 0.55),
+        posts: Math.max(0, est.posts ?? 0),
+        engagementRate: engRate,
+        reach: Math.round(followers * 0.18),
+        impressions: Math.round(followers * 0.28),
+        avgLikes: Math.max(0, est.avgLikes ?? 0),
+        avgComments: Math.max(0, est.avgComments ?? 0),
+        rawJson: {
+          isEstimated: true,
+          source: 'AI_DEEP_RESEARCH',
+          generatedAt: new Date().toISOString(),
+        } as unknown as PrismaTypes.InputJsonValue,
+      },
+      update: {
+        // don't overwrite existing estimated data — leave stale is fine
+      },
+    })
+  }
+
+  console.info(`[deepResearch] ✓ org ${orgId} — score=${data.presenceScore}, competitors=${data.competitors?.length ?? 0}, keywords=${data.seoKeywords?.length ?? 0}`)
+}

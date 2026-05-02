@@ -168,4 +168,19 @@ export async function deleteOrg(req: AuthRequest, res: Response): Promise<void> 
 
 export async function switchOrg(req: AuthRequest, res: Response): Promise<void> {
   const { id } = req.params
-  const u
+  const userId = req.user!.sub
+
+  const member = await prisma.orgMember.findUnique({
+    where: { orgId_userId: { orgId: id, userId } },
+    include: { org: true },
+  })
+
+  if (!member) {
+    res.status(404).json({ error: 'Not found', message: 'You are not a member of this organization' })
+    return
+  }
+
+  await prisma.user.update({ where: { id: userId }, data: { activeOrgId: id } })
+
+  res.json({ data: { activeOrg: member.org } })
+}
