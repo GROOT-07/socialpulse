@@ -1,8 +1,8 @@
 /**
  * Deep Research Service
  *
- * Uses Gemini AI to comprehensively research any organisation.
- * No Apify / OAuth / external API keys required beyond GEMINI_API_KEY.
+ * Uses AI to comprehensively research any organisation.
+ * No Apify / OAuth / external API keys required beyond OPENAI_API_KEY.
  *
  * Generates and persists:
  *  • OrgIntelligence  — presence score, strengths, issues, quick wins
@@ -16,7 +16,7 @@
  *  • GET  /api/competitors            (auto-runs when empty)
  */
 
-import { askJSON } from '../../lib/ai/gemini'
+import { askJSON } from '../../lib/ai/router'
 import { prisma } from '../../lib/prisma'
 import {
   Platform,
@@ -203,7 +203,7 @@ RULES:
       aiDiagnosis: {
         description: data.description,
         benchmarks: data.industryBenchmarks,
-        generatedBy: 'gemini-deep-research',
+        generatedBy: 'ai-deep-research',
       } as unknown as PrismaTypes.InputJsonValue,
       presenceScore: Math.min(100, Math.max(0, data.presenceScore ?? 30)),
       lastScannedAt: new Date(),
@@ -216,7 +216,7 @@ RULES:
       aiDiagnosis: {
         description: data.description,
         benchmarks: data.industryBenchmarks,
-        generatedBy: 'gemini-deep-research',
+        generatedBy: 'ai-deep-research',
       } as unknown as PrismaTypes.InputJsonValue,
       presenceScore: Math.min(100, Math.max(0, data.presenceScore ?? 30)),
       lastScannedAt: new Date(),
@@ -362,4 +362,5 @@ RULES:
   }
 
   for (const est of data.platformEstimates ?? []) {
-    const platform = VALID_PLATFORMS.includes(est.platform as Platfor
+    const platform = VALID_PLATFORMS.includes(est.platform as Platform)
+      ? (est

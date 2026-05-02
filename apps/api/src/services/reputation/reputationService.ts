@@ -11,7 +11,7 @@
  */
 
 import { prisma } from '../../lib/prisma'
-import { askJSON } from '../../lib/ai/gemini'
+import { askJSON } from '../../lib/ai/router'
 import type { Prisma } from '@prisma/client'
 
 export interface ReviewItem {
@@ -101,7 +101,7 @@ async function fetchSerpReviews(orgName: string, city: string): Promise<ReviewIt
 
 // ── Claude AI reputation synthesis ───────────────────────────
 
-async function synthesiseWithGemini(
+async function synthesiseWithAI(
   orgName: string,
   industry: string,
   city: string,
@@ -189,8 +189,8 @@ export async function analyseReputation(orgId: string): Promise<ReputationReport
   const places = placesData.status === 'fulfilled' ? placesData.value : null
   const reviews = serpReviews.status === 'fulfilled' ? serpReviews.value : []
 
-  // Synthesise with Gemini
-  const report = await synthesiseWithGemini(name, ind, loc, places, reviews)
+  // Synthesise with AI
+  const report = await synthesiseWithAI(name, ind, loc, places, reviews)
 
   // Persist to OrgIntelligence
   const googlePlacesData = places

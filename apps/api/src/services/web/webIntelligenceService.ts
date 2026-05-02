@@ -6,13 +6,13 @@
  *   1. SerpAPI      (SERPAPI_KEY)          — Google Search results
  *   2. Firecrawl    (FIRECRAWL_API_KEY)    — deep website crawling
  *   3. Tavily       (TAVILY_API_KEY)       — AI-native search
- *   4. Gemini       (GEMINI_API_KEY)       — always available fallback
+ *   4. OpenAI       (OPENAI_API_KEY)       — always available fallback
  *
  * All results are normalised into WebMentionResult[] so callers
  * never need to know which source was used.
  */
 
-import { askJSON, flash } from '../../lib/ai/gemini'
+import { askJSON, flash } from '../../lib/ai/router'
 
 // ── Public types ──────────────────────────────────────────────
 
@@ -145,9 +145,9 @@ export async function crawlWebsite(url: string): Promise<{ title: string; descri
   }
 }
 
-// ── Gemini fallback ───────────────────────────────────────────
+// ── AI fallback ─────────────────────────────────────────────────
 
-async function searchWithGemini(orgName: string, industry: string, city: string): Promise<WebMentionResult[]> {
+async function searchWithAI(orgName: string, industry: string, city: string): Promise<WebMentionResult[]> {
   const prompt = `Generate a realistic web presence analysis for "${orgName}", a ${industry} business in ${city}, India.
 
 Based on your knowledge, describe the likely online mentions and web presence for this type of business.
@@ -175,7 +175,7 @@ Return ONLY the JSON array.`
   }
 }
 
-// ── Sentiment analysis via Gemini ─────────────────────────────
+// ── Sentiment analysis via AI ──────────────────────────────────
 
 async function enrichSentiment(
   mentions: WebMentionResult[],
@@ -242,8 +242,8 @@ export async function analyseWebPresence(
   } else if (tavilyResults.status === 'fulfilled' && tavilyResults.value.length > 0) {
     mentions = tavilyResults.value
   } else {
-    // Gemini fallback — always works
-    mentions = await searchWithGemini(orgName, industry, city)
+    // AI fallback — always works
+    mentions = await searchWithAI(orgName, industry, city)
   }
 
   // Enrich sentiment via Claude

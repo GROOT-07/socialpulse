@@ -1,10 +1,10 @@
 /**
- * AI Service — all Gemini API calls go through here.
- * Routes all requests through the centralized Gemini router.
- * Never expose GEMINI_API_KEY to the frontend.
+ * AI Service — all AI calls go through the centralized router.
+ * Routes all requests through the centralized OpenAI router.
+ * Never expose OPENAI_API_KEY to the frontend.
  */
 
-import { ask, askJSON, flash } from '../../lib/ai/gemini'
+import { ask, askJSON, flash } from '../../lib/ai/router'
 import { prisma } from '../../lib/prisma'
 import { Platform, Prisma } from '@prisma/client'
 

@@ -4,7 +4,7 @@
  * Provides endpoints for:
  *  1. Content Review — review/approve/reject AI-drafted ContentPieces
  *  2. Team Notes     — lightweight rich notes with AI enhance
- *  3. Meeting Intelligence — analyze transcripts with Gemini, store as ContentPiece
+ *  3. Meeting Intelligence — analyze transcripts with AI, store as ContentPiece
  *
  * All data uses existing DB models (no schema changes):
  *  • ContentPiece — notes (type=FAQ), meeting summaries (type=BLOG), review queue
@@ -14,7 +14,7 @@
 import type { Response } from 'express'
 import type { AuthRequest } from '../middleware/auth'
 import { prisma } from '../lib/prisma'
-import { ask, askJSON } from '../lib/ai/gemini'
+import { ask, askJSON } from '../lib/ai/router'
 import {
   ContentPieceStatus,
   ContentPieceType,

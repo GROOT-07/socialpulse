@@ -91,9 +91,9 @@ async function fetchTavilyTrends(industry: string, city: string): Promise<TrendR
   }
 }
 
-// ── Gemini fallback ────────────────────────────────────────────
+// ── AI fallback ───────────────────────────────────────────────
 
-async function fetchGeminiTrends(
+async function fetchAITrends(
   orgName: string,
   industry: string,
   city: string,
@@ -191,15 +191,15 @@ export async function discoverTrends(orgId: string): Promise<TrendResult[]> {
     trends = tavilyResults.value
   }
 
-  // Gemini always provides — combine if we have partial results
-  const geminiResults = await fetchGeminiTrends(name, ind, loc)
-  if (geminiResults.length > 0) {
+  // AI always provides — combine if we have partial results
+  const aiResults = await fetchAITrends(name, ind, loc)
+  if (aiResults.length > 0) {
     if (trends.length === 0) {
-      trends = geminiResults
+      trends = aiResults
     } else {
-      // Merge: Gemini fills gaps up to 15 total
+      // Merge: AI fills gaps up to 15 total
       const existing = new Set(trends.map((t) => t.topic.toLowerCase()))
-      const extras = geminiResults.filter((t) => !existing.has(t.topic.toLowerCase()))
+      const extras = aiResults.filter((t) => !existing.has(t.topic.toLowerCase()))
       trends = [...trends, ...extras].slice(0, 15)
     }
   }
@@ -267,3 +267,4 @@ export async function areTrendsStale(orgId: string): Promise<boolean> {
   const ageMs = Date.now() - new Date(latest.fetchedAt).getTime()
   return ageMs > 24 * 60 * 60 * 1000 // >24h stale
 }
+                           

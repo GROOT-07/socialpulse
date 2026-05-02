@@ -52,7 +52,7 @@ export async function getApiHealth(req: AuthRequest, res: Response): Promise<voi
     meta:      !!env['META_APP_ID'],
     youtube:   !!env['GOOGLE_CLIENT_ID'],
     data365:   !!env['DATA365_API_KEY'],
-    gemini:    !!env['GEMINI_API_KEY'],
+    openai:    !!env['OPENAI_API_KEY'],
   }
   res.json({ data: { apiHealth: checks } })
 }
