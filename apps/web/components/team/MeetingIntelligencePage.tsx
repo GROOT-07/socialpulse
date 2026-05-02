@@ -277,7 +277,7 @@ function AnalysisCard({
                       <p className="text-sm font-medium text-[var(--color-text)] leading-tight">{c.title}</p>
                       <div className="flex items-center gap-1 shrink-0">
                         <Badge variant="outline" className="text-[10px] px-1.5 py-0">{c.platform}</Badge>
-                        <Badge variant="secondary" className="text-[10px] px-1.5 py-0">{c.format}</Badge>
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0">{c.format}</Badge>
                       </div>
                     </div>
                     <p className="mt-1.5 text-xs text-[var(--color-accent)] italic">"{c.hook}"</p>

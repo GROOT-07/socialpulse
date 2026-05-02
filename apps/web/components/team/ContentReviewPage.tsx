@@ -67,7 +67,7 @@ function ReviewCard({
                 {item.title}
               </p>
               <div className="flex items-center gap-1.5 shrink-0">
-                <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                <Badge variant="default" className="text-[10px] px-1.5 py-0">
                   {TYPE_LABELS[item.type] ?? item.type}
                 </Badge>
                 {item.platform && (
