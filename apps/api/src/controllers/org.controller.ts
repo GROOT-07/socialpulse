@@ -2,6 +2,7 @@ import type { Response } from 'express'
 import { prisma } from '../lib/prisma'
 import type { AuthRequest } from '../middleware/auth'
 import type { Platform } from '@socialpulse/shared'
+import { deepResearchOrg } from '../services/intelligence/deepResearchService'
 
 // ── List user's orgs ──────────────────────────────────────────
 
@@ -82,11 +83,17 @@ export async function createOrg(req: AuthRequest, res: Response): Promise<void> 
       country,
       brandColor,
       ownerId: userId,
-      activePlatforms: [],
+      // Default to the 3 main platforms so deepResearch creates social accounts immediately
+      activePlatforms: ['INSTAGRAM', 'FACEBOOK', 'YOUTUBE'],
       members: {
         create: { userId, role: 'ORG_ADMIN', acceptedAt: new Date() },
       },
     },
+  })
+
+  // Fire-and-forget deep research so summary page has data on first visit
+  deepResearchOrg(org.id).catch((err: unknown) => {
+    console.warn(`[createOrg] deepResearch failed for ${org.id}:`, (err as Error).message)
   })
 
   res.status(201).json({ data: org })
@@ -161,19 +168,4 @@ export async function deleteOrg(req: AuthRequest, res: Response): Promise<void> 
 
 export async function switchOrg(req: AuthRequest, res: Response): Promise<void> {
   const { id } = req.params
-  const userId = req.user!.sub
-
-  const member = await prisma.orgMember.findUnique({
-    where: { orgId_userId: { orgId: id, userId } },
-    include: { org: true },
-  })
-
-  if (!member) {
-    res.status(404).json({ error: 'Not found', message: 'You are not a member of this organization' })
-    return
-  }
-
-  await prisma.user.update({ where: { id: userId }, data: { activeOrgId: id } })
-
-  res.json({ data: { activeOrg: member.org } })
-}
+  const u

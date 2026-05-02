@@ -117,11 +117,23 @@ router.get('/:id/intelligence', async (req: Request, res: Response) => {
   // Check if we need to (re)generate
   const stale = await isResearchStale(id)
   if (stale) {
-    try {
-      await deepResearchOrg(id)
-    } catch (err) {
-      console.error('[intelligence] deepResearch failed:', (err as Error).message)
-      // Fall through — return whatever we have (may be null)
+    const existing = await prisma.orgIntelligence.findUnique({
+      where: { orgId: id },
+      select: { presenceScore: true },
+    })
+
+    if (!existing) {
+      // First-time load: run synchronously so the page gets real data on this request
+      try {
+        await deepResearchOrg(id)
+      } catch (err) {
+        console.error('[intelligence] deepResearch failed (first run):', (err as Error).message)
+      }
+    } else {
+      // Stale refresh: run in background so the page loads instantly with cached data
+      deepResearchOrg(id).catch((err: unknown) => {
+        console.warn('[intelligence] deepResearch background refresh failed:', (err as Error).message)
+      })
     }
   }
 
@@ -229,20 +241,4 @@ router.get('/:id/trending', async (req: Request, res: Response) => {
 })
 
 // ── V2: Playbook ORG_SUMMARY section (for /summary roadmap) ──
-router.get('/:id/playbook/summary', async (req: Request, res: Response) => {
-  const { id } = req.params as { id: string }
-
-  const section = await prisma.playbookSection.findFirst({
-    where: { orgId: id, sectionType: 'ORG_SUMMARY' },
-    orderBy: { updatedAt: 'desc' },
-  })
-
-  if (!section) {
-    res.status(404).json({ error: 'Summary not yet generated' })
-    return
-  }
-
-  res.json({ content: section.content, updatedAt: section.updatedAt })
-})
-
-export default router
+r
