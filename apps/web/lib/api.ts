@@ -756,3 +756,191 @@ export const orgResearchApi = {
   intelligence: (orgId: string) =>
     request<{ presenceScore: number; strengths: string[]; urgentIssues: unknown[]; quickWins: unknown[] }>(`/api/orgs/${orgId}/intelligence`),
 }
+
+// ── Content Piece (saved posts) ───────────────────────────────
+
+export interface ContentPieceItem {
+  id: string
+  orgId: string
+  type: string
+  platform: string | null
+  title: string
+  content: string
+  hashtags: string[]
+  seoScore: number
+  status: string
+  generatedByAI: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export const savedApi = {
+  list: (type?: string) =>
+    request<ContentPieceItem[]>(`/api/content-pieces${type ? `?type=${type}` : ''}`),
+  archive: (id: string) =>
+    request<ContentPieceItem>(`/api/content-pieces/${id}`, { method: 'DELETE' }),
+}
+
+// ── Sprint Engine ─────────────────────────────────────────────
+
+export interface PlatformBrief {
+  platform: string
+  postCount: number
+  formats: string[]
+  topics: string[]
+  bestTime: string
+}
+
+export interface SprintWeek {
+  id: string
+  sprintId: string
+  weekNumber: number
+  theme: string
+  whyNow: string
+  notableDates: string[]
+  platforms: PlatformBrief[]
+  createdAt: string
+}
+
+export interface SprintPlan {
+  id: string
+  orgId: string
+  startDate: string
+  endDate: string
+  status: string
+  weeks: SprintWeek[]
+  createdAt: string
+  updatedAt: string
+}
+
+export const sprintApi = {
+  getLatest: () => request<SprintPlan | null>('/api/sprint'),
+  list: () => request<SprintPlan[]>('/api/sprint'),
+  generate: (startDate: string) =>
+    request<{ sprintId: string; status: string }>('/api/sprint/generate', {
+      method: 'POST',
+      body: JSON.stringify({ startDate }),
+    }),
+  regenerateWeek: (sprintId: string, weekNumber: number) =>
+    request<SprintWeek>('/api/sprint/regenerate-week', {
+      method: 'POST',
+      body: JSON.stringify({ sprintId, weekNumber }),
+    }),
+}
+
+// ── Content Guardrails ────────────────────────────────────────
+
+export interface ContentGuardrail {
+  id: string
+  orgId: string
+  category: string
+  ruleType: string
+  text: string
+  platform: string | null
+  aiGenerated: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export const guardrailsApi = {
+  list: () => request<ContentGuardrail[]>('/api/sprint/guardrails'),
+  create: (data: { category: string; ruleType: string; text: string; platform?: string }) =>
+    request<ContentGuardrail>('/api/sprint/guardrails', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  update: (id: string, data: { text?: string; category?: string; ruleType?: string; platform?: string }) =>
+    request<ContentGuardrail>(`/api/sprint/guardrails/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  delete: (id: string) =>
+    request<{ success: boolean }>(`/api/sprint/guardrails/${id}`, { method: 'DELETE' }),
+  generate: () =>
+    request<{ count: number; message: string }>('/api/sprint/guardrails/generate', { method: 'POST' }),
+}
+
+// ── Team Hub types ─────────────────────────────────────────────
+
+export interface MeetingActionItem {
+  task: string
+  owner: string
+  deadline: string
+  priority: 'HIGH' | 'MEDIUM' | 'LOW'
+}
+
+export interface MeetingContentIdea {
+  title: string
+  platform: string
+  format: string
+  hook: string
+}
+
+export interface MeetingAnalysis {
+  meetingTitle: string
+  date: string
+  duration: string
+  participants: string[]
+  executiveSummary: string
+  keyDecisions: string[]
+  actionItems: MeetingActionItem[]
+  contentIdeas: MeetingContentIdea[]
+  followUpQuestions: string[]
+  nextMeetingAgenda: string[]
+  sentiment: 'POSITIVE' | 'NEUTRAL' | 'MIXED' | 'NEGATIVE'
+  tags: string[]
+  originalTranscript?: string
+}
+
+export interface MeetingSummary {
+  id: string
+  title: string
+  tags: string[]
+  createdAt: string
+  analysis: MeetingAnalysis | null
+}
+
+// ── Team Hub API ───────────────────────────────────────────────
+
+export const teamApi = {
+  // Content review
+  listReviewQueue: () => request<ContentPieceItem[]>('/api/team/review'),
+  reviewPiece: (id: string, action: 'approve' | 'reject') =>
+    request<ContentPieceItem>(`/api/team/review/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ action }),
+    }),
+
+  // Notes
+  listNotes: () => request<ContentPieceItem[]>('/api/team/notes'),
+  createNote: (title: string, content: string) =>
+    request<ContentPieceItem>('/api/team/notes', {
+      method: 'POST',
+      body: JSON.stringify({ title, content }),
+    }),
+  updateNote: (id: string, data: { title?: string; content?: string }) =>
+    request<ContentPieceItem>(`/api/team/notes/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  deleteNote: (id: string) =>
+    request<{ success: boolean }>(`/api/team/notes/${id}`, { method: 'DELETE' }),
+  enhanceNote: (id: string) =>
+    request<ContentPieceItem>(`/api/team/notes/${id}/enhance`, { method: 'POST' }),
+
+  // Meetings
+  listMeetings: () => request<MeetingSummary[]>('/api/team/meetings'),
+  getMeeting: (id: string) => request<MeetingSummary>(`/api/team/meetings/${id}`),
+  analyzeMeeting: (data: {
+    title?: string
+    transcript: string
+    participants?: string
+    duration?: string
+  }) =>
+    request<{ id: string; title: string; analysis: MeetingAnalysis; savedAt: string }>(
+      '/api/team/meetings/analyze',
+      { method: 'POST', body: JSON.stringify(data) },
+    ),
+  deleteMeeting: (id: string) =>
+    request<{ success: boolean }>(`/api/team/meetings/${id}`, { method: 'DELETE' }),
+}
