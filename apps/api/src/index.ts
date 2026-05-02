@@ -37,6 +37,7 @@ import opsRoutes from './routes/ops.routes'
 import reputationRoutes from './routes/reputation.routes'
 import teamRoutes from './routes/team.routes'
 import contentPiecesRoutes from './routes/contentPieces.routes'
+import sprintRoutes from './routes/sprint.routes'
 import { errorHandler } from './middleware/errorHandler'
 import { scheduleRecurringJobs } from './lib/queue'
 import { createMetricsWorker } from './workers/metrics.worker'
@@ -135,6 +136,7 @@ app.use('/api/ops', opsRoutes)
 app.use('/api/reputation', reputationRoutes)
 app.use('/api/team', teamRoutes)
 app.use('/api/content-pieces', contentPiecesRoutes)
+app.use('/api/sprint', sprintRoutes)
 
 // ── 404 ───────────────────────────────────────────────────────
 app.use((_req, res) => {
