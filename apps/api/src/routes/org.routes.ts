@@ -241,4 +241,20 @@ router.get('/:id/trending', async (req: Request, res: Response) => {
 })
 
 // ── V2: Playbook ORG_SUMMARY section (for /summary roadmap) ──
-r
+router.get('/:id/playbook/summary', async (req: Request, res: Response) => {
+  const { id } = req.params as { id: string }
+
+  const section = await prisma.playbookSection.findFirst({
+    where: { orgId: id, sectionType: 'ORG_SUMMARY' },
+    orderBy: { updatedAt: 'desc' },
+  })
+
+  if (!section) {
+    res.status(404).json({ error: 'Summary not yet generated' })
+    return
+  }
+
+  res.json({ content: section.content, updatedAt: section.updatedAt })
+})
+
+export default router
