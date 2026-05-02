@@ -206,11 +206,4 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         <button
           onClick={onToggle}
           aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          className="flex h-10 items-center justify-center border-t border-brand-border text-[var(--color-text-4)] hover:text-[var(--color-text-3)] transition-colors duration-instant"
-        >
-          {collapsed ? <ChevronsRight className="h-4 w-4" /> : <ChevronsLeft className="h-4 w-4" />}
-        </button>
-      </aside>
-    </TooltipProvider>
-  )
-}
+          className="flex h-10

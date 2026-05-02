@@ -30,6 +30,11 @@ const ENV_CHECKS: EnvCheck[] = [
 
   // ── Competitor data ───────────────────────────────────────
   { key: 'DATA365_API_KEY',     required: false, feature: 'Competitor intelligence (Data365)' },
+
+  // ── Email / SMTP ──────────────────────────────────────────
+  { key: 'SMTP_HOST',           required: false, feature: 'Email (password reset)' },
+  { key: 'SMTP_USER',           required: false, feature: 'Email (password reset)' },
+  { key: 'SMTP_PASS',           required: false, feature: 'Email (password reset)' },
 ]
 
 export function validateEnv(): void {
@@ -71,18 +76,4 @@ export function validateEnv(): void {
 }
 
 /** Starts workers in a try/catch so a Redis outage doesn't kill the HTTP server. */
-export async function startWorkersSafely(
-  starters: Array<{ name: string; start: () => void }>,
-): Promise<void> {
-  for (const { name, start } of starters) {
-    try {
-      start()
-      console.info(`[startup] ✅ ${name} started`)
-    } catch (err) {
-      console.error(
-        `[startup] ❌ ${name} failed to start — HTTP API will still serve requests:`,
-        (err as Error).message,
-      )
-    }
-  }
-}
+export a
