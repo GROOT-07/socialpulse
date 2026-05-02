@@ -756,3 +756,104 @@ export const orgResearchApi = {
   intelligence: (orgId: string) =>
     request<{ presenceScore: number; strengths: string[]; urgentIssues: unknown[]; quickWins: unknown[] }>(`/api/orgs/${orgId}/intelligence`),
 }
+// ── Saved Content Pieces ──────────────────────────────────────
+
+export interface ContentPieceItem {
+  id: string
+  orgId: string
+  type: string
+  platform: string | null
+  title: string
+  content: string
+  hashtags: string[]
+  seoScore: number
+  keywordTargeted: string | null
+  status: string
+  scheduledAt: string | null
+  publishedAt: string | null
+  externalUrl: string | null
+  generatedByAI: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export const savedApi = {
+  list: (type?: string) =>
+    request<ContentPieceItem[]>(`/api/content-pieces${type ? `?type=${encodeURIComponent(type)}` : ''}`),
+  delete: (id: string) =>
+    request<{ success: boolean }>(`/api/content-pieces/${id}`, { method: 'DELETE' }),
+}
+
+// ── Content Guardrails ────────────────────────────────────────
+
+export interface ContentGuardrail {
+  id: string
+  orgId: string
+  text: string
+  category: 'VOICE' | 'LEGAL' | 'PLATFORM' | 'CONTENT' | 'CULTURAL'
+  ruleType: string
+  platform: string | null
+  aiGenerated: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export const guardrailsApi = {
+  list: () => request<ContentGuardrail[]>('/api/sprint/guardrails'),
+  create: (data: { text: string; category: string; ruleType: string; platform?: string | null }) =>
+    request<ContentGuardrail>('/api/sprint/guardrails', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  update: (id: string, data: { text?: string; category?: string; ruleType?: string; platform?: string | null }) =>
+    request<ContentGuardrail>(`/api/sprint/guardrails/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  delete: (id: string) =>
+    request<{ success: boolean }>(`/api/sprint/guardrails/${id}`, { method: 'DELETE' }),
+  generate: () =>
+    request<ContentGuardrail[]>('/api/sprint/guardrails/generate', { method: 'POST' }),
+}
+
+// ── Sprint Planner ────────────────────────────────────────────
+
+export interface PlatformBrief {
+  hook: string
+  points: string[]
+  caption: string
+  hashtags: string[]
+}
+
+export interface SprintWeek {
+  id: string
+  sprintPlanId: string
+  weekNumber: number
+  theme: string
+  whyNow: string
+  notableDates: string[]
+  platforms: Record<string, PlatformBrief>
+}
+
+export interface SprintPlan {
+  id: string
+  orgId: string
+  startDate: string
+  status: string
+  weeks: SprintWeek[]
+  createdAt: string
+}
+
+export const sprintApi = {
+  getLatest: () => request<SprintPlan | null>('/api/sprint/latest'),
+  generate: (startDate?: string) =>
+    request<SprintPlan>('/api/sprint/generate', {
+      method: 'POST',
+      body: JSON.stringify({ startDate }),
+    }),
+  regenerateWeek: (sprintId: string, weekNumber: number) =>
+    request<{ text: string }>('/api/sprint/regenerate-week', {
+      method: 'POST',
+      body: JSON.stringify({ sprintId, weekNumber }),
+    }),
+}
