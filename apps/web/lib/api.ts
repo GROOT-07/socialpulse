@@ -757,7 +757,7 @@ export const orgResearchApi = {
     request<{ presenceScore: number; strengths: string[]; urgentIssues: unknown[]; quickWins: unknown[] }>(`/api/orgs/${orgId}/intelligence`),
 }
 
-// ── Content Piece (saved posts) ───────────────────────────────
+// ── Team Hub types ─────────────────────────────────────────────
 
 export interface ContentPieceItem {
   id: string
@@ -773,94 +773,6 @@ export interface ContentPieceItem {
   createdAt: string
   updatedAt: string
 }
-
-export const savedApi = {
-  list: (type?: string) =>
-    request<ContentPieceItem[]>(`/api/content-pieces${type ? `?type=${type}` : ''}`),
-  archive: (id: string) =>
-    request<ContentPieceItem>(`/api/content-pieces/${id}`, { method: 'DELETE' }),
-}
-
-// ── Sprint Engine ─────────────────────────────────────────────
-
-export interface PlatformBrief {
-  platform: string
-  postCount: number
-  formats: string[]
-  topics: string[]
-  bestTime: string
-}
-
-export interface SprintWeek {
-  id: string
-  sprintId: string
-  weekNumber: number
-  theme: string
-  whyNow: string
-  notableDates: string[]
-  platforms: PlatformBrief[]
-  createdAt: string
-}
-
-export interface SprintPlan {
-  id: string
-  orgId: string
-  startDate: string
-  endDate: string
-  status: string
-  weeks: SprintWeek[]
-  createdAt: string
-  updatedAt: string
-}
-
-export const sprintApi = {
-  getLatest: () => request<SprintPlan | null>('/api/sprint'),
-  list: () => request<SprintPlan[]>('/api/sprint'),
-  generate: (startDate: string) =>
-    request<{ sprintId: string; status: string }>('/api/sprint/generate', {
-      method: 'POST',
-      body: JSON.stringify({ startDate }),
-    }),
-  regenerateWeek: (sprintId: string, weekNumber: number) =>
-    request<SprintWeek>('/api/sprint/regenerate-week', {
-      method: 'POST',
-      body: JSON.stringify({ sprintId, weekNumber }),
-    }),
-}
-
-// ── Content Guardrails ────────────────────────────────────────
-
-export interface ContentGuardrail {
-  id: string
-  orgId: string
-  category: string
-  ruleType: string
-  text: string
-  platform: string | null
-  aiGenerated: boolean
-  createdAt: string
-  updatedAt: string
-}
-
-export const guardrailsApi = {
-  list: () => request<ContentGuardrail[]>('/api/sprint/guardrails'),
-  create: (data: { category: string; ruleType: string; text: string; platform?: string }) =>
-    request<ContentGuardrail>('/api/sprint/guardrails', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    }),
-  update: (id: string, data: { text?: string; category?: string; ruleType?: string; platform?: string }) =>
-    request<ContentGuardrail>(`/api/sprint/guardrails/${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify(data),
-    }),
-  delete: (id: string) =>
-    request<{ success: boolean }>(`/api/sprint/guardrails/${id}`, { method: 'DELETE' }),
-  generate: () =>
-    request<{ count: number; message: string }>('/api/sprint/guardrails/generate', { method: 'POST' }),
-}
-
-// ── Team Hub types ─────────────────────────────────────────────
 
 export interface MeetingActionItem {
   task: string
