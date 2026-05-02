@@ -158,5 +158,11 @@ app.listen(PORT, async () => {
     { name: 'Daily brief worker',    start: createBriefWorker },
   ])
 
-  try {
-    await schedu
+  try {leRecurringJobs()
+    console.info('✅ Recurring jobs scheduled')
+  } catch (err) {
+    console.error('❌ Could not schedule recurring jobs:', (err as Error).message)
+  }
+})
+
+export default app
