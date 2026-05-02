@@ -283,7 +283,7 @@ router.post('/brief', wrapAuth(async (req: AuthRequest, res: Response) => {
     }),
     prisma.trendingTopic.findMany({
       where: { orgId },
-      orderBy: { volumeScore: 'desc' },
+      orderBy: { searchVolume: 'desc' },
       take: 5,
     }),
     prisma.checklistItem.findMany({
