@@ -586,4 +586,53 @@ model CompetitorPost {
   postedAt       DateTime?
   contentType    String?      // IMAGE | VIDEO | REEL | CAROUSEL
   hashtags       String[]
-  fetch
+  fetchedAt      DateTime     @default(now())
+
+  @@map("competitor_posts")
+}
+
+model SprintPlan {
+  id          String      @id @default(cuid())
+  orgId       String
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  startDate   DateTime
+  endDate     DateTime
+  status      String      @default("GENERATING") // GENERATING | READY | ARCHIVED
+  weeks       SprintWeek[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@index([orgId])
+  @@map("sprint_plans")
+}
+
+model SprintWeek {
+  id          String    @id @default(cuid())
+  sprintId    String
+  sprint      SprintPlan @relation(fields: [sprintId], references: [id], onDelete: Cascade)
+  weekNumber  Int       // 1-8
+  theme       String
+  whyNow      String
+  notableDates String[] // array of date strings
+  platforms   Json      // Record<string, { hook, points, caption, hashtags }>
+  createdAt   DateTime  @default(now())
+
+  @@index([sprintId])
+  @@map("sprint_weeks")
+}
+
+model ContentGuardrail {
+  id          String   @id @default(cuid())
+  orgId       String
+  org         Organization @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  category    String   // VOICE | LEGAL | PLATFORM | CONTENT | CULTURAL
+  ruleType    String   // DO | DONT | RULE | WARNING
+  text        String
+  platform    String?  // null = all platforms
+  aiGenerated Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([orgId])
+  @@map("content_guardrails")
+}
