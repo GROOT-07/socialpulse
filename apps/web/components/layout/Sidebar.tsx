@@ -125,15 +125,84 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           collapsed ? 'w-14' : 'w-sidebar',
         )}
       >
-        {/* -- Collapse toggle */}
-        <button
-          onClick={onToggle}
-          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          className="flex h-10 items-center justify-center border-t border-brand-border text-[var(--color-text-4)] hover:text-[var(--color-text-3)] transition-colors duration-instant"
-        >
-          {collapsed ? <ChevronsRight className="h-4 w-4" /> : <ChevronsLeft className="h-4 w-4" />}
-        </button>
-      </aside>
-    </TooltipProvider>
-  )
-}
+        {/* ── Org switcher ───────────────────────────────── */}
+        <div className={cn('flex h-14 items-center border-b border-brand-border', collapsed ? 'justify-center px-0' : 'px-3 gap-2')}>
+          {/* Org logo / initials */}
+          <div
+            className="flex h-7 w-7 shrink-0 items-center justify-center rounded font-semibold text-xs text-white"
+            style={{ backgroundColor: activeOrg?.brandColor ?? 'var(--color-accent)' }}
+          >
+            {activeOrg ? getInitials(activeOrg.name) : <Building2 className="h-4 w-4" />}
+          </div>
+
+          {!collapsed && (
+            <>
+              <div className="flex-1 min-w-0">
+                <p className="truncate text-sm font-medium text-[var(--color-text)]">
+                  {activeOrg?.name ?? 'No org selected'}
+                </p>
+                <p className="truncate text-[10px] text-[var(--color-text-4)]">
+                  {activeOrg?.industry ?? '—'}
+                </p>
+              </div>
+              <ChevronDown className="h-4 w-4 shrink-0 text-[var(--color-text-4)]" />
+            </>
+          )}
+        </div>
+
+        {/* ── Nav items ──────────────────────────────────── */}
+        <nav className="flex-1 overflow-y-auto py-3 scrollbar-thin">
+          {NAV_SECTIONS.map((section) => (
+            <div key={section.label} className="mb-1">
+              {/* Section label — hidden when collapsed */}
+              {!collapsed && (
+                <p className="px-4 pb-1 pt-3 text-[10px] font-bold uppercase tracking-[1.5px] text-[var(--color-text-4)]">
+                  {section.label}
+                </p>
+              )}
+              {collapsed && <div className="my-1 mx-2 h-px bg-brand-border" />}
+
+              {section.items.map((item) => {
+                const Icon = item.icon
+                const active = isActive(item.href)
+
+                const navItem = (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={cn(
+                      'relative mx-2 flex h-8 items-center gap-2 rounded px-2 text-sm transition-colors duration-instant',
+                      active
+                        ? 'nav-active'
+                        : 'text-[var(--color-text-3)] hover:bg-surface-2 hover:text-[var(--color-text-2)]',
+                      collapsed && 'justify-center px-0 w-10 mx-auto',
+                    )}
+                  >
+                    {/* Active left border */}
+                    {active && !collapsed && (
+                      <span className="absolute left-0 top-1 bottom-1 w-0.5 rounded-full bg-accent" />
+                    )}
+                    <Icon
+                      className={cn('shrink-0', collapsed ? 'h-[18px] w-[18px]' : 'h-4 w-4')}
+                      aria-hidden="true"
+                    />
+                    {!collapsed && <span className="truncate">{item.label}</span>}
+                  </Link>
+                )
+
+                if (collapsed) {
+                  return (
+                    <Tooltip key={item.href}>
+                      <TooltipTrigger asChild>{navItem}</TooltipTrigger>
+                      <TooltipContent side="right">{item.label}</TooltipContent>
+                    </Tooltip>
+                  )
+                }
+
+                return navItem
+              })}
+            </div>
+          ))}
+        </nav>
+
+        {/* ─�
