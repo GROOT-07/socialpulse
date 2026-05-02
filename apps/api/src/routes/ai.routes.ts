@@ -1,6 +1,7 @@
 import { Router } from 'express'
 import { authenticate } from '../middleware/auth'
 import { wrapAuth } from '../lib/asyncHandler'
+import { prisma } from '../lib/prisma'
 import {
   gapAnalysis,
   generateIdeas,
@@ -112,7 +113,4 @@ router.post('/trending-ideas', wrapAuth(async (req: AuthRequest, res: Response) 
   if (!orgId) { res.status(400).json({ error: 'x-org-id required' }); return }
   const { platform, count } = req.body as { platform?: string; count?: number }
   const ideas = await generateTrendingIdeas(orgId, { platform, count })
-  res.json({ data: { ideas } })
-}))
-
-export default router
+  res.json({ data: {

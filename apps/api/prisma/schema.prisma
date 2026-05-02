@@ -194,6 +194,8 @@ model Organization {
   contentPieces    ContentPiece[]
   orgIntelligence  OrgIntelligence?
   trendingTopics   TrendingTopic[]
+  sprintPlans      SprintPlan[]
+  guardrails       ContentGuardrail[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -584,7 +586,4 @@ model CompetitorPost {
   postedAt       DateTime?
   contentType    String?      // IMAGE | VIDEO | REEL | CAROUSEL
   hashtags       String[]
-  fetchedAt      DateTime     @default(now())
-
-  @@map("competitor_posts")
-}
+  fetch

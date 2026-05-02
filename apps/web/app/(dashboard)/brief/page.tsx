@@ -1,9 +1,11 @@
 'use client'
 
 import React from 'react'
+import { useRouter } from 'next/navigation'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { Sparkles, TrendingUp, AlertTriangle, Lightbulb, CheckSquare, RefreshCw, Clock } from 'lucide-react'
 import { briefApi } from '@/lib/api'
+import { useGeneratorStore } from '@/store/generator.store'
 import { PageHeader } from '@/components/shared/PageHeader'
 import { EmptyState } from '@/components/shared/EmptyState'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -13,6 +15,8 @@ import { toast } from 'sonner'
 
 export default function DailyBriefPage() {
   const qc = useQueryClient()
+  const router = useRouter()
+  const { setPrefill } = useGeneratorStore()
   const { data, isLoading } = useQuery({ queryKey: ['daily-brief'], queryFn: () => briefApi.today() })
   const generateMutation = useMutation({
     mutationFn: () => briefApi.generate(),
@@ -20,6 +24,18 @@ export default function DailyBriefPage() {
     onError: (e: Error) => toast.error(e.message),
   })
   const brief = data?.brief
+
+  const handleUseIdea = () => {
+    if (brief?.ideaOfDay) {
+      setPrefill({
+        topic: brief.ideaOfDay ?? brief.summary,
+        context: `From daily brief: ${brief.summary}`,
+        source: 'brief',
+        shouldFocus: true,
+      })
+      router.push('/studio/posts')
+    }
+  }
 
   return (
     <>
@@ -82,7 +98,7 @@ export default function DailyBriefPage() {
 
           {brief.ideaOfDay && (
             <Card className="border-accent/30 bg-accent/5">
-              <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2 text-accent"><Lightbulb className="h-4 w-4" />Idea of the Day</CardTitle></CardHeader>
+              <CardHeader className="pb-2 flex items-center justify-between"><CardTitle className="text-sm flex items-center gap-2 text-accent"><Lightbulb className="h-4 w-4" />Idea of the Day</CardTitle><Button size="sm" variant="default" onClick={handleUseIdea}>Use this idea</Button></CardHeader>
               <CardContent><p className="text-sm text-[var(--color-text-2)]">{brief.ideaOfDay}</p></CardContent>
             </Card>
           )}
@@ -91,19 +107,4 @@ export default function DailyBriefPage() {
             <Card>
               <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><CheckSquare className="h-4 w-4 text-accent" />Action Items</CardTitle></CardHeader>
               <CardContent>
-                <ul className="space-y-2">
-                  {brief.actionItems.map((item: string, i: number) => (
-                    <li key={i} className="flex items-start gap-2 text-sm text-[var(--color-text-2)]">
-                      <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-accent text-white text-[10px] font-bold">{i + 1}</span>
-                      {item}
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-      )}
-    </>
-  )
-}
+ 

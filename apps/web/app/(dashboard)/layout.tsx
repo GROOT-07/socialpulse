@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useEffect } from 'react'
 import { Sidebar } from '@/components/layout/Sidebar'
 import { Topbar } from '@/components/layout/Topbar'
+import { CopyModal } from '@/components/shared/CopyModal'
 import { useAuthStore } from '@/store/auth.store'
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
@@ -34,9 +35,4 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
         <main className="flex-1 overflow-y-auto scrollbar-thin">
           <div className="mx-auto max-w-content px-7 py-7">
             {children}
-          </div>
-        </main>
-      </div>
-    </div>
-  )
-}
+     

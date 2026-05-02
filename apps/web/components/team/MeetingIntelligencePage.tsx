@@ -323,7 +323,7 @@ function AnalysisCard({
             </span>
             <Button
               size="sm"
-              variant="ghost"
+              variant="outline"
               className="h-7 text-xs"
               onClick={() => downloadTxt(summary.title, analysis)}
             >
@@ -331,7 +331,7 @@ function AnalysisCard({
             </Button>
             <Button
               size="sm"
-              variant="ghost"
+              variant="outline"
               className="h-7 text-xs"
               onClick={() => downloadHtml(summary.title, analysis)}
             >
@@ -339,7 +339,7 @@ function AnalysisCard({
             </Button>
             <Button
               size="sm"
-              variant="ghost"
+              variant="outline"
               className="h-7 text-xs"
               onClick={() => downloadJson(summary.title, analysis)}
             >
@@ -408,7 +408,7 @@ function AnalyzeForm({ onClose }: { onClose: () => void }) {
           <div className="mt-4 flex items-center gap-2">
             <Button
               size="sm"
-              variant="ghost"
+              variant="outline"
               className="h-7 text-xs"
               onClick={() => downloadTxt(result.title, result.analysis)}
             >
@@ -416,7 +416,7 @@ function AnalyzeForm({ onClose }: { onClose: () => void }) {
             </Button>
             <Button
               size="sm"
-              variant="ghost"
+              variant="outline"
               className="h-7 text-xs"
               onClick={() => downloadHtml(result.title, result.analysis)}
             >
@@ -627,3 +627,4 @@ export function MeetingIntelligencePage() {
     </>
   )
 }
+  
