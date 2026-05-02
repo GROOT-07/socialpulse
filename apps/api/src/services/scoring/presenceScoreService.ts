@@ -280,4 +280,3 @@ export async function getOPS(orgId: string): Promise<OPSBreakdown | null> {
   if (!intel?.presenceScoreBreakdown) return null
   return intel.presenceScoreBreakdown as unknown as OPSBreakdown
 }
-                                                                                    

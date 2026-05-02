@@ -207,4 +207,54 @@ export function PlatformAnalyticsPage({ platform }: PlatformAnalyticsPageProps) 
             />
             <KpiCard
               label="Total impressions"
-              value={data?.summary?.totalImpre
+              value={data?.summary?.totalImpressions ?? 0}
+              format="number"
+              icon={<BarChart2 className="h-4 w-4" />}
+              loading={isLoading}
+            />
+            <KpiCard
+              label="Avg likes / post"
+              value={data?.summary?.avgLikes ?? 0}
+              format="number"
+              icon={<Heart className="h-4 w-4" />}
+              loading={isLoading}
+            />
+            <KpiCard
+              label="Avg comments / post"
+              value={data?.summary?.avgComments ?? 0}
+              format="number"
+              icon={<MessageCircle className="h-4 w-4" />}
+              loading={isLoading}
+            />
+          </div>
+
+          {/* Charts row 1 */}
+          <div className="mt-6 grid grid-cols-1 gap-4 xl:grid-cols-2">
+            <FollowerTrendChart
+              data={data?.metrics ?? []}
+              loading={isLoading}
+              color={chartColor}
+            />
+            <EngagementChart
+              data={data?.metrics ?? []}
+              loading={isLoading}
+              color={chartColor}
+            />
+          </div>
+
+          {/* Charts row 2 */}
+          <div className="mt-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
+            <ReachImpressionsChart
+              data={data?.metrics ?? []}
+              loading={isLoading}
+            />
+            <EngagementBreakdownChart
+              data={data?.metrics ?? []}
+              loading={isLoading}
+            />
+          </div>
+        </>
+      )}
+    </>
+  )
+}
