@@ -4,7 +4,6 @@ import crypto from 'crypto'
 import { prisma } from '../lib/prisma'
 import { signAccessToken, signRefreshToken, verifyRefreshToken, refreshTokenExpiresAt } from '../lib/jwt'
 import type { AuthRequest } from '../middleware/auth'
-import { sendPasswordResetEmail } from '../lib/mailer'
 
 // ── Register ──────────────────────────────────────────────────
 
@@ -182,7 +181,9 @@ export async function forgotPassword(req: Request, res: Response): Promise<void>
 
     await prisma.passwordResetToken.create({ data: { email, token, expiresAt } })
 
-    await sendPasswordResetEmail(email, token)
+    // TODO: send email via nodemailer
+    // sendPasswordResetEmail(email, token)
+    console.info(`[AUTH] Password reset token for ${email}: ${token}`)
   }
 
   res.json({

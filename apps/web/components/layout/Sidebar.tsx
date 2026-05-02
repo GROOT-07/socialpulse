@@ -9,7 +9,7 @@ import {
   CalendarDays, CheckSquare, Lightbulb, ClipboardCheck, BookOpen,
   Settings, Link2, ShieldCheck, ChevronDown, ChevronsLeft, ChevronsRight,
   Building2, Sparkles, FileText, Video, Search, TrendingUp,
-  Map, Activity, MessageCircle, Shield, Star, Mic, StickyNote, CheckCircle2, Zap, BookmarkCheck,
+  Map, Activity, MessageCircle, Shield, Star, Mic, StickyNote, CheckCircle2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useOrgStore } from '@/store/org.store'
@@ -56,9 +56,6 @@ const NAV_SECTIONS = [
       { label: 'Smart Calendar',   href: '/studio/calendar',  icon: CalendarDays },
       { label: 'SEO Planner',      href: '/studio/seo',       icon: Search },
       { label: 'Trending Now',     href: '/studio/trends',    icon: TrendingUp },
-      { label: 'Saved Posts',      href: '/studio/saved',     icon: BookmarkCheck },
-      { label: 'Sprint Planner',   href: '/studio/sprint',    icon: Zap },
-      { label: 'Guardrails',       href: '/studio/guardrails', icon: ShieldCheck },
     ],
   },
   {
@@ -205,4 +202,15 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           ))}
         </nav>
 
-        {/* ─�
+        {/* ── Collapse toggle ─────────────────────────────── */}
+        <button
+          onClick={onToggle}
+          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          className="flex h-10 items-center justify-center border-t border-brand-border text-[var(--color-text-4)] hover:text-[var(--color-text-3)] transition-colors duration-instant"
+        >
+          {collapsed ? <ChevronsRight className="h-4 w-4" /> : <ChevronsLeft className="h-4 w-4" />}
+        </button>
+      </aside>
+    </TooltipProvider>
+  )
+}
