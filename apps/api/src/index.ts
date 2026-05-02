@@ -35,6 +35,7 @@ import specialDaysRoutes from './routes/specialdays.routes'
 import trendsRoutes from './routes/trends.routes'
 import opsRoutes from './routes/ops.routes'
 import reputationRoutes from './routes/reputation.routes'
+import teamRoutes from './routes/team.routes'
 import { errorHandler } from './middleware/errorHandler'
 import { scheduleRecurringJobs } from './lib/queue'
 import { createMetricsWorker } from './workers/metrics.worker'
@@ -131,6 +132,7 @@ app.use('/api/special-days', specialDaysRoutes)
 app.use('/api/trends', trendsRoutes)
 app.use('/api/ops', opsRoutes)
 app.use('/api/reputation', reputationRoutes)
+app.use('/api/team', teamRoutes)
 
 // ── 404 ───────────────────────────────────────────────────────
 app.use((_req, res) => {
@@ -149,15 +151,4 @@ app.listen(PORT, async () => {
     { name: 'Metrics worker',        start: createMetricsWorker },
     { name: 'Token refresh worker',  start: createTokenRefreshWorker },
     { name: 'Competitor worker',     start: createCompetitorWorker },
-    { name: 'Daily brief worker',    start: createBriefWorker },
-  ])
-
-  try {
-    await scheduleRecurringJobs()
-    console.info('✅ Recurring jobs scheduled')
-  } catch (err) {
-    console.error('❌ Could not schedule recurring jobs:', (err as Error).message)
-  }
-})
-
-export default app
+    { name: 'Daily brief worker',

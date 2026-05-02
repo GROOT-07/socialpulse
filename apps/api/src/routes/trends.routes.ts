@@ -83,39 +83,4 @@ router.get('/competitor-posts', wrapAuth(async (req: AuthRequest, res: Response)
         select: { businessName: true, handle: true, platform: true },
       },
     },
-    orderBy: { engagementRate: 'desc' },
-    take: limit,
-  })
-
-  res.json({ data: { posts } })
-}))
-
-// ── GET /api/trends/ai — AI-generated trending topics ────────
-
-router.get('/ai', wrapAuth(async (req: AuthRequest, res: Response) => {
-  const orgId = req.headers['x-org-id'] as string
-  if (!orgId) { res.status(400).json({ error: 'x-org-id required' }); return }
-
-  // Return cached if fresh, otherwise discover
-  const stale = await areTrendsStale(orgId)
-  let topics
-  if (stale) {
-    topics = await discoverTrends(orgId)
-  } else {
-    topics = await getTrends(orgId)
-  }
-
-  res.json({ data: { topics, fromCache: !stale } })
-}))
-
-// ── POST /api/trends/discover — force re-discover ────────────
-
-router.post('/discover', wrapAuth(async (req: AuthRequest, res: Response) => {
-  const orgId = req.headers['x-org-id'] as string
-  if (!orgId) { res.status(400).json({ error: 'x-org-id required' }); return }
-
-  const topics = await discoverTrends(orgId)
-  res.json({ data: { topics, message: `Discovered ${topics.length} trending topics` } })
-}))
-
-export default router
+    orderBy: { engagem

@@ -9,7 +9,7 @@ import {
   CalendarDays, CheckSquare, Lightbulb, ClipboardCheck, BookOpen,
   Settings, Link2, ShieldCheck, ChevronDown, ChevronsLeft, ChevronsRight,
   Building2, Sparkles, FileText, Video, Search, TrendingUp,
-  Map, Activity, MessageCircle, Shield, Star,
+  Map, Activity, MessageCircle, Shield, Star, Users, Mic, StickyNote, CheckCircle2,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { useOrgStore } from '@/store/org.store'
@@ -73,6 +73,14 @@ const NAV_SECTIONS = [
       { label: 'Outreach Checklist', href: '/checklist', icon: CheckSquare },
       { label: 'Ideas Bank',         href: '/ideas',      icon: Lightbulb },
       { label: 'Profile Audit',      href: '/audit',      icon: ClipboardCheck },
+    ],
+  },
+  {
+    label: 'Team Hub',
+    items: [
+      { label: 'Content Review',      href: '/team/review',   icon: CheckCircle2 },
+      { label: 'Team Notes',          href: '/team/notes',    icon: StickyNote },
+      { label: 'Meeting Intelligence',href: '/team/meetings', icon: Mic },
     ],
   },
   {
@@ -196,13 +204,4 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
 
         {/* ── Collapse toggle ─────────────────────────────── */}
         <button
-          onClick={onToggle}
-          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          className="flex h-10 items-center justify-center border-t border-brand-border text-[var(--color-text-4)] hover:text-[var(--color-text-3)] transition-colors duration-instant"
-        >
-          {collapsed ? <ChevronsRight className="h-4 w-4" /> : <ChevronsLeft className="h-4 w-4" />}
-        </button>
-      </aside>
-    </TooltipProvider>
-  )
-}
+          onClick={onTogg

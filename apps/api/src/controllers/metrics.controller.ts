@@ -224,46 +224,4 @@ export async function getKpiMetrics(req: AuthRequest, res: Response): Promise<vo
   let totalFollowers = 0
   let totalReach = 0
   let totalImpressions = 0
-  const engagementRates: number[] = []
-  const kpiByPlatform: Record<string, {
-    followers: number
-    followersDelta: number
-    engagementRate: number
-    reach: number
-    impressions: number
-  }> = {}
-
-  for (const account of accounts) {
-    const [latest, prev] = account.metrics
-    if (!latest) continue
-
-    totalFollowers += latest.followers
-    totalReach += latest.reach
-    totalImpressions += latest.impressions
-    if (latest.engagementRate > 0) engagementRates.push(latest.engagementRate)
-
-    kpiByPlatform[account.platform] = {
-      followers: latest.followers,
-      followersDelta: prev ? latest.followers - prev.followers : 0,
-      engagementRate: latest.engagementRate,
-      reach: latest.reach,
-      impressions: latest.impressions,
-    }
-  }
-
-  const avgEngagementRate = engagementRates.length > 0
-    ? engagementRates.reduce((s, r) => s + r, 0) / engagementRates.length
-    : 0
-
-  res.json({
-    data: {
-      kpis: {
-        totalFollowers,
-        totalReach,
-        totalImpressions,
-        avgEngagementRate: Math.round(avgEngagementRate * 100) / 100,
-      },
-      byPlatform: kpiByPlatform,
-    },
-  })
-}
+  const engagementRates: numb

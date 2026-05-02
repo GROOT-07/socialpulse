@@ -260,27 +260,4 @@ export async function getDiscoveryMeta(req: AuthRequest, res: Response): Promise
     data: {
       lastDiscoveryAt: latest?.addedAt ?? null,
       counts: {
-        total: counts.reduce((s, r) => s + r._count, 0),
-        confirmed: statusMap['CONFIRMED'] ?? 0,
-        pending: statusMap['PENDING'] ?? 0,
-        dismissed: statusMap['DISMISSED'] ?? 0,
-      },
-    },
-  })
-}
-
-export async function getCompetitorMetrics(req: AuthRequest, res: Response): Promise<void> {
-  const { id: cId } = req.params
-  const days = Number(req.query['days'] ?? 30)
-  const from = new Date()
-  from.setUTCDate(from.getUTCDate() - days)
-  from.setUTCHours(0, 0, 0, 0)
-
-  const competitor = await prisma.competitor.findUnique({
-    where: { id: cId },
-    include: { metrics: { where: { snapshotDate: { gte: from } }, orderBy: { snapshotDate: 'asc' } } },
-  })
-
-  if (!competitor) { res.status(404).json({ error: 'Not found' }); return }
-  res.json({ data: { competitor } })
-}
+        tota

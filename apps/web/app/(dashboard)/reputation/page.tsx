@@ -372,7 +372,4 @@ export default function ReputationPage() {
           )}
 
         </div>
-      ) : null}
-    </>
-  )
-}
+      )

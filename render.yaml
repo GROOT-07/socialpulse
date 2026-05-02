@@ -10,7 +10,7 @@ services:
     branch: main
 
     buildCommand: >
-      pnpm install --frozen-lockfile &&
+      pnpm install --no-frozen-lockfile &&
       pnpm --filter @socialpulse/api exec prisma generate &&
       pnpm --filter @socialpulse/api run build
 
@@ -25,4 +25,4 @@ services:
         value: 4000
       # The following must be set manually in the Render dashboard:
       # DATABASE_URL, REDIS_URL, JWT_SECRET, JWT_REFRESH_SECRET,
-      # ENCRYPTION_KEY, API_BASE_URL, CORS_ORIGINS, ANTHROPIC_API_KEY
+      # ENCRYPTION_KEY, API_BASE_URL, CORS_ORIGINS, GEMINI_API_KEY
