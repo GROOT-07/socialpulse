@@ -14,9 +14,9 @@ importers:
 
   apps/api:
     dependencies:
-      '@anthropic-ai/sdk':
-        specifier: ^0.32.1
-        version: 0.32.1
+      openai:
+        specifier: ^4.77.0
+        version: 4.77.0
       '@prisma/client':
         specifier: ^5.20.0
         version: 5.22.0(prisma@5.22.0)
