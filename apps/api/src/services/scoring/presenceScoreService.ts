@@ -83,7 +83,7 @@ export async function calculatePresenceScore(orgId: string): Promise<PresenceSco
     create: {
       orgId,
       presenceScore: total,
-      lastResearched: new Date(),
+      lastScannedAt: new Date(),
     },
     update: {
       presenceScore: total,
@@ -116,6 +116,6 @@ export async function getPresenceScore(orgId: string): Promise<PresenceScore | n
       contentFreshness: 0,
       profileCompleteness: 0,
     },
-    lastCalculated: intel.lastResearched ?? new Date(),
+    lastCalculated: intel.lastScannedAt ?? new Date(),
   }
 }

@@ -44,7 +44,7 @@ export async function generateSprintPlan(orgId: string, startDate: Date): Promis
 
   const trendingTopics = await prisma.trendingTopic.findMany({
     where: { orgId },
-    orderBy: { volumeScore: 'desc' },
+    orderBy: { searchVolume: 'desc' },
     take: 10,
   })
 
