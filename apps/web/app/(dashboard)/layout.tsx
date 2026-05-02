@@ -13,7 +13,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
   const { isAuthenticated } = useAuthStore()
   const router = useRouter()
 
-  // Guard: redirect to login if not authenticated
   useEffect(() => {
     if (!isAuthenticated) {
       router.replace('/login')
@@ -24,15 +23,16 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
 
   return (
     <div className="flex h-screen overflow-hidden bg-page">
-      {/* Sidebar */}
       <Sidebar collapsed={collapsed} onToggle={() => setCollapsed((c) => !c)} />
-
-      {/* Main area */}
       <div className="flex flex-1 flex-col overflow-hidden">
         <Topbar />
-
-        {/* Page content */}
         <main className="flex-1 overflow-y-auto scrollbar-thin">
           <div className="mx-auto max-w-content px-7 py-7">
             {children}
-     
+          </div>
+        </main>
+      </div>
+      <CopyModal />
+    </div>
+  )
+}

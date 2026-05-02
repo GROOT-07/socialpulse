@@ -20,7 +20,7 @@ export default function DailyBriefPage() {
   const { data, isLoading } = useQuery({ queryKey: ['daily-brief'], queryFn: () => briefApi.today() })
   const generateMutation = useMutation({
     mutationFn: () => briefApi.generate(),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ['daily-brief'] }); toast.success('Brief generation queued — refresh in a moment') },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['daily-brief'] }); toast.success('Brief generation queued') },
     onError: (e: Error) => toast.error(e.message),
   })
   const brief = data?.brief
@@ -44,7 +44,7 @@ export default function DailyBriefPage() {
           <div className="flex items-center gap-2">
             <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => qc.invalidateQueries({ queryKey: ['daily-brief'] })}><RefreshCw className="h-3.5 w-3.5" /></Button>
             <Button size="sm" onClick={() => generateMutation.mutate()} disabled={generateMutation.isPending}>
-              <Sparkles className="mr-1.5 h-3.5 w-3.5" />{generateMutation.isPending ? 'Queuing…' : 'Regenerate'}
+              <Sparkles className="mr-1.5 h-3.5 w-3.5" />{generateMutation.isPending ? 'Queuing...' : 'Regenerate'}
             </Button>
           </div>
         }
@@ -59,7 +59,7 @@ export default function DailyBriefPage() {
           <EmptyState
             icon={<Sparkles className="h-12 w-12" />}
             heading="No brief for today"
-            description="Generate your daily brief to get an AI summary of your performance, competitor activity, and action items."
+            description="Generate your daily brief to get an AI summary of your performance and action items."
             action={{ label: 'Generate Brief', onClick: () => generateMutation.mutate() }}
           />
         </CardContent></Card>
@@ -98,13 +98,28 @@ export default function DailyBriefPage() {
 
           {brief.ideaOfDay && (
             <Card className="border-accent/30 bg-accent/5">
-              <CardHeader className="pb-2 flex items-center justify-between"><CardTitle className="text-sm flex items-center gap-2 text-accent"><Lightbulb className="h-4 w-4" />Idea of the Day</CardTitle><Button size="sm" variant="default" onClick={handleUseIdea}>Use this idea</Button></CardHeader>
+              <CardHeader className="pb-2 flex items-center justify-between"><CardTitle className="text-sm flex items-center gap-2 text-accent"><Lightbulb className="h-4 w-4" />Idea of the Day</CardTitle><Button size="sm" variant="primary" onClick={handleUseIdea}>Use this idea</Button></CardHeader>
               <CardContent><p className="text-sm text-[var(--color-text-2)]">{brief.ideaOfDay}</p></CardContent>
             </Card>
           )}
 
-          {brief.actionItems.length > 0 && (
+          {brief.actionItems && brief.actionItems.length > 0 && (
             <Card>
               <CardHeader className="pb-2"><CardTitle className="text-sm flex items-center gap-2"><CheckSquare className="h-4 w-4 text-accent" />Action Items</CardTitle></CardHeader>
               <CardContent>
- 
+                <ul className="space-y-2">
+                  {(brief.actionItems as string[]).map((item: string, i: number) => (
+                    <li key={i} className="flex items-start gap-2 text-sm text-[var(--color-text-2)]">
+                      <span className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-accent text-white text-[10px] font-bold">{i + 1}</span>
+                      {item}
+                    </li>
+                  ))}
+                </ul>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+    </>
+  )
+}
