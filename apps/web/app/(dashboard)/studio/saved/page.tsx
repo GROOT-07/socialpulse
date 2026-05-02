@@ -145,7 +145,7 @@ function ContentCard({ item }: { item: ContentPieceItem }) {
         {item.seoScore > 0 && (
           <div className="flex items-center gap-1 text-xs">
             <span className="text-[var(--color-text-4)]">SEO Score:</span>
-            <Badge variant="secondary" className="bg-success/10 text-success border-0">
+            <Badge variant="success" className="border-0">
               {Math.round(item.seoScore)}%
             </Badge>
           </div>
@@ -179,7 +179,7 @@ function ContentCard({ item }: { item: ContentPieceItem }) {
             </Button>
           </div>
           {item.generatedByAI && (
-            <Badge variant="secondary" className="bg-accent/10 text-accent border-0 text-xs">
+            <Badge variant="accent" className="border-0 text-xs">
               <Sparkles className="h-3 w-3 mr-1" />
               AI Generated
             </Badge>
@@ -289,3 +289,4 @@ export default function SavedPostsPage() {
     </>
   )
 }
+                                                         
