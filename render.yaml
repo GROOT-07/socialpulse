@@ -26,3 +26,6 @@ services:
       # The following must be set manually in the Render dashboard:
       # DATABASE_URL, REDIS_URL, JWT_SECRET, JWT_REFRESH_SECRET,
       # ENCRYPTION_KEY, API_BASE_URL, CORS_ORIGINS, GEMINI_API_KEY
+      # Optional model overrides (defaults shown):
+      # GEMINI_PRO_MODEL=gemini-2.5-pro
+      # GEMINI_FLASH_MODEL=gemini-2.5-flash

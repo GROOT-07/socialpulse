@@ -151,4 +151,15 @@ app.listen(PORT, async () => {
     { name: 'Metrics worker',        start: createMetricsWorker },
     { name: 'Token refresh worker',  start: createTokenRefreshWorker },
     { name: 'Competitor worker',     start: createCompetitorWorker },
-    { name: 'Daily brief worker',
+    { name: 'Daily brief worker',    start: createBriefWorker },
+  ])
+
+  try {
+    await scheduleRecurringJobs()
+    console.info('✅ Recurring jobs scheduled')
+  } catch (err) {
+    console.error('❌ Could not schedule recurring jobs:', (err as Error).message)
+  }
+})
+
+export default app

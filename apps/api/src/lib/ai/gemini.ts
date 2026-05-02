@@ -251,4 +251,3 @@ export async function ping(): Promise<boolean> {
 }
 
 export const isConfigured = (): boolean => !!process.env.GEMINI_API_KEY
-                            

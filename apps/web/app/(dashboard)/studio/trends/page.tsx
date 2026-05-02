@@ -430,4 +430,114 @@ export default function TrendingNowPage() {
           ) : aiTopics.length > 0 ? (
             <>
               {aiTopicsData?.fromCache && (
-                <div className="mb-4 flex items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[va
+                <div className="mb-4 flex items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-2)] px-4 py-2">
+                  <Brain className="h-3.5 w-3.5 text-[var(--color-text-4)]" />
+                  <p className="text-xs text-[var(--color-text-3)]">
+                    Showing cached trends. Click Rediscover to refresh.
+                  </p>
+                </div>
+              )}
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {aiTopics.map((topic) => (
+                  <AITopicCard key={topic.id} topic={topic} />
+                ))}
+              </div>
+            </>
+          ) : (
+            <div className="rounded-xl border border-dashed border-[var(--color-border)] bg-[var(--color-surface)] p-12 text-center">
+              <Flame className="h-10 w-10 text-[var(--color-text-4)] mx-auto mb-3" />
+              <p className="text-sm font-medium text-[var(--color-text-2)] mb-1">
+                No trending topics yet
+              </p>
+              <p className="text-xs text-[var(--color-text-4)] mb-4">
+                Click Rediscover to find what&apos;s trending in your industry
+              </p>
+              <Button
+                className="gap-2"
+                onClick={() => discoverMutation.mutate()}
+                disabled={discoverMutation.isPending}
+              >
+                {discoverMutation.isPending ? (
+                  <><Loader2 className="h-4 w-4 animate-spin" /> Discovering…</>
+                ) : (
+                  <><Brain className="h-4 w-4" /> Discover trends now</>
+                )}
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Content Ideas Tab ── */}
+      {activeTab === 'ideas' && (
+        <div>
+          {ideasMutation.isPending ? (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {[1, 2, 3].map((i) => (
+                <div
+                  key={i}
+                  className="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4 space-y-3 animate-pulse"
+                >
+                  {[60, 100, 80, 40].map((w, j) => (
+                    <div
+                      key={j}
+                      className="h-3 rounded bg-[var(--color-surface-2)]"
+                      style={{ width: `${w}%` }}
+                    />
+                  ))}
+                </div>
+              ))}
+            </div>
+          ) : ideas.length > 0 ? (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {ideas.map((idea, i) => (
+                <IdeaCard key={i} idea={idea} />
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-xl border border-dashed border-[var(--color-border)] bg-[var(--color-surface)] p-12 text-center">
+              <Sparkles className="h-10 w-10 text-[var(--color-text-4)] mx-auto mb-3" />
+              <p className="text-sm font-medium text-[var(--color-text-2)] mb-1">
+                No ideas generated yet
+              </p>
+              <p className="text-xs text-[var(--color-text-4)] mb-4">
+                Select a platform filter and click Generate to get AI-powered content ideas
+              </p>
+              <Button className="gap-2" onClick={() => ideasMutation.mutate()}>
+                <Sparkles className="h-4 w-4" /> Generate ideas now
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Upcoming Days Tab ── */}
+      {activeTab === 'calendar' && (
+        <div>
+          {(specialDays as SpecialDay[]).length > 0 ? (
+            <div className="space-y-2">
+              {(specialDays as SpecialDay[]).slice(0, 20).map((day) => (
+                <SpecialDayCard key={day.id} day={day} />
+              ))}
+              <div className="pt-2 text-center">
+                <Link
+                  href="/studio/calendar"
+                  className="text-xs text-[var(--color-accent)] hover:underline flex items-center gap-1 justify-center"
+                >
+                  View full content calendar <ChevronRight className="h-3 w-3" />
+                </Link>
+              </div>
+            </div>
+          ) : (
+            <EmptyState
+              icon={<Calendar className="h-10 w-10" />}
+              heading="No upcoming days"
+              description="Special days and content opportunities will appear here."
+              action={{ label: 'View Calendar', href: '/studio/calendar' }}
+            />
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
