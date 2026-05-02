@@ -158,4 +158,8 @@ app.listen(PORT, async () => {
     await scheduleRecurringJobs()
     console.info('✅ Recurring jobs scheduled')
   } catch (err) {
-    console.error('❌ Could no
+    console.error('❌ Could not schedule recurring jobs:', (err as Error).message)
+  }
+})
+
+export default app

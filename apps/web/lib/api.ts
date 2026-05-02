@@ -756,3 +756,103 @@ export const orgResearchApi = {
   intelligence: (orgId: string) =>
     request<{ presenceScore: number; strengths: string[]; urgentIssues: unknown[]; quickWins: unknown[] }>(`/api/orgs/${orgId}/intelligence`),
 }
+
+// ── Team Hub types ─────────────────────────────────────────────
+
+export interface ContentPieceItem {
+  id: string
+  orgId: string
+  type: string
+  platform: string | null
+  title: string
+  content: string
+  hashtags: string[]
+  seoScore: number
+  status: string
+  generatedByAI: boolean
+  createdAt: string
+  updatedAt: string
+}
+
+export interface MeetingActionItem {
+  task: string
+  owner: string
+  deadline: string
+  priority: 'HIGH' | 'MEDIUM' | 'LOW'
+}
+
+export interface MeetingContentIdea {
+  title: string
+  platform: string
+  format: string
+  hook: string
+}
+
+export interface MeetingAnalysis {
+  meetingTitle: string
+  date: string
+  duration: string
+  participants: string[]
+  executiveSummary: string
+  keyDecisions: string[]
+  actionItems: MeetingActionItem[]
+  contentIdeas: MeetingContentIdea[]
+  followUpQuestions: string[]
+  nextMeetingAgenda: string[]
+  sentiment: 'POSITIVE' | 'NEUTRAL' | 'MIXED' | 'NEGATIVE'
+  tags: string[]
+  originalTranscript?: string
+}
+
+export interface MeetingSummary {
+  id: string
+  title: string
+  tags: string[]
+  createdAt: string
+  analysis: MeetingAnalysis | null
+}
+
+// ── Team Hub API ───────────────────────────────────────────────
+
+export const teamApi = {
+  // Content review
+  listReviewQueue: () => request<ContentPieceItem[]>('/api/team/review'),
+  reviewPiece: (id: string, action: 'approve' | 'reject') =>
+    request<ContentPieceItem>(`/api/team/review/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ action }),
+    }),
+
+  // Notes
+  listNotes: () => request<ContentPieceItem[]>('/api/team/notes'),
+  createNote: (title: string, content: string) =>
+    request<ContentPieceItem>('/api/team/notes', {
+      method: 'POST',
+      body: JSON.stringify({ title, content }),
+    }),
+  updateNote: (id: string, data: { title?: string; content?: string }) =>
+    request<ContentPieceItem>(`/api/team/notes/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  deleteNote: (id: string) =>
+    request<{ success: boolean }>(`/api/team/notes/${id}`, { method: 'DELETE' }),
+  enhanceNote: (id: string) =>
+    request<ContentPieceItem>(`/api/team/notes/${id}/enhance`, { method: 'POST' }),
+
+  // Meetings
+  listMeetings: () => request<MeetingSummary[]>('/api/team/meetings'),
+  getMeeting: (id: string) => request<MeetingSummary>(`/api/team/meetings/${id}`),
+  analyzeMeeting: (data: {
+    title?: string
+    transcript: string
+    participants?: string
+    duration?: string
+  }) =>
+    request<{ id: string; title: string; analysis: MeetingAnalysis; savedAt: string }>(
+      '/api/team/meetings/analyze',
+      { method: 'POST', body: JSON.stringify(data) },
+    ),
+  deleteMeeting: (id: string) =>
+    request<{ success: boolean }>(`/api/team/meetings/${id}`, { method: 'DELETE' }),
+}
