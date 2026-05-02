@@ -756,7 +756,8 @@ export const orgResearchApi = {
   intelligence: (orgId: string) =>
     request<{ presenceScore: number; strengths: string[]; urgentIssues: unknown[]; quickWins: unknown[] }>(`/api/orgs/${orgId}/intelligence`),
 }
-// ── Saved Content Pieces ──────────────────────────────────────
+
+// ── Content Piece (saved posts) ───────────────────────────────
 
 export interface ContentPieceItem {
   id: string
@@ -767,11 +768,7 @@ export interface ContentPieceItem {
   content: string
   hashtags: string[]
   seoScore: number
-  keywordTargeted: string | null
   status: string
-  scheduledAt: string | null
-  publishedAt: string | null
-  externalUrl: string | null
   generatedByAI: boolean
   createdAt: string
   updatedAt: string
@@ -779,9 +776,56 @@ export interface ContentPieceItem {
 
 export const savedApi = {
   list: (type?: string) =>
-    request<ContentPieceItem[]>(`/api/content-pieces${type ? `?type=${encodeURIComponent(type)}` : ''}`),
-  delete: (id: string) =>
-    request<{ success: boolean }>(`/api/content-pieces/${id}`, { method: 'DELETE' }),
+    request<ContentPieceItem[]>(`/api/content-pieces${type ? `?type=${type}` : ''}`),
+  archive: (id: string) =>
+    request<ContentPieceItem>(`/api/content-pieces/${id}`, { method: 'DELETE' }),
+}
+
+// ── Sprint Engine ─────────────────────────────────────────────
+
+export interface PlatformBrief {
+  platform: string
+  postCount: number
+  formats: string[]
+  topics: string[]
+  bestTime: string
+}
+
+export interface SprintWeek {
+  id: string
+  sprintId: string
+  weekNumber: number
+  theme: string
+  whyNow: string
+  notableDates: string[]
+  platforms: PlatformBrief[]
+  createdAt: string
+}
+
+export interface SprintPlan {
+  id: string
+  orgId: string
+  startDate: string
+  endDate: string
+  status: string
+  weeks: SprintWeek[]
+  createdAt: string
+  updatedAt: string
+}
+
+export const sprintApi = {
+  getLatest: () => request<SprintPlan | null>('/api/sprint'),
+  list: () => request<SprintPlan[]>('/api/sprint'),
+  generate: (startDate: string) =>
+    request<{ sprintId: string; status: string }>('/api/sprint/generate', {
+      method: 'POST',
+      body: JSON.stringify({ startDate }),
+    }),
+  regenerateWeek: (sprintId: string, weekNumber: number) =>
+    request<SprintWeek>('/api/sprint/regenerate-week', {
+      method: 'POST',
+      body: JSON.stringify({ sprintId, weekNumber }),
+    }),
 }
 
 // ── Content Guardrails ────────────────────────────────────────
@@ -789,9 +833,9 @@ export const savedApi = {
 export interface ContentGuardrail {
   id: string
   orgId: string
-  text: string
-  category: 'VOICE' | 'LEGAL' | 'PLATFORM' | 'CONTENT' | 'CULTURAL'
+  category: string
   ruleType: string
+  text: string
   platform: string | null
   aiGenerated: boolean
   createdAt: string
@@ -800,12 +844,12 @@ export interface ContentGuardrail {
 
 export const guardrailsApi = {
   list: () => request<ContentGuardrail[]>('/api/sprint/guardrails'),
-  create: (data: { text: string; category: string; ruleType: string; platform?: string | null }) =>
+  create: (data: { category: string; ruleType: string; text: string; platform?: string }) =>
     request<ContentGuardrail>('/api/sprint/guardrails', {
       method: 'POST',
       body: JSON.stringify(data),
     }),
-  update: (id: string, data: { text?: string; category?: string; ruleType?: string; platform?: string | null }) =>
+  update: (id: string, data: { text?: string; category?: string; ruleType?: string; platform?: string }) =>
     request<ContentGuardrail>(`/api/sprint/guardrails/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(data),
@@ -813,47 +857,90 @@ export const guardrailsApi = {
   delete: (id: string) =>
     request<{ success: boolean }>(`/api/sprint/guardrails/${id}`, { method: 'DELETE' }),
   generate: () =>
-    request<ContentGuardrail[]>('/api/sprint/guardrails/generate', { method: 'POST' }),
+    request<{ count: number; message: string }>('/api/sprint/guardrails/generate', { method: 'POST' }),
 }
 
-// ── Sprint Planner ────────────────────────────────────────────
+// ── Team Hub types ─────────────────────────────────────────────
 
-export interface PlatformBrief {
+export interface MeetingActionItem {
+  task: string
+  owner: string
+  deadline: string
+  priority: 'HIGH' | 'MEDIUM' | 'LOW'
+}
+
+export interface MeetingContentIdea {
+  title: string
+  platform: string
+  format: string
   hook: string
-  points: string[]
-  caption: string
-  hashtags: string[]
 }
 
-export interface SprintWeek {
-  id: string
-  sprintPlanId: string
-  weekNumber: number
-  theme: string
-  whyNow: string
-  notableDates: string[]
-  platforms: Record<string, PlatformBrief>
+export interface MeetingAnalysis {
+  meetingTitle: string
+  date: string
+  duration: string
+  participants: string[]
+  executiveSummary: string
+  keyDecisions: string[]
+  actionItems: MeetingActionItem[]
+  contentIdeas: MeetingContentIdea[]
+  followUpQuestions: string[]
+  nextMeetingAgenda: string[]
+  sentiment: 'POSITIVE' | 'NEUTRAL' | 'MIXED' | 'NEGATIVE'
+  tags: string[]
+  originalTranscript?: string
 }
 
-export interface SprintPlan {
+export interface MeetingSummary {
   id: string
-  orgId: string
-  startDate: string
-  status: string
-  weeks: SprintWeek[]
+  title: string
+  tags: string[]
   createdAt: string
+  analysis: MeetingAnalysis | null
 }
 
-export const sprintApi = {
-  getLatest: () => request<SprintPlan | null>('/api/sprint/latest'),
-  generate: (startDate?: string) =>
-    request<SprintPlan>('/api/sprint/generate', {
-      method: 'POST',
-      body: JSON.stringify({ startDate }),
+// ── Team Hub API ───────────────────────────────────────────────
+
+export const teamApi = {
+  // Content review
+  listReviewQueue: () => request<ContentPieceItem[]>('/api/team/review'),
+  reviewPiece: (id: string, action: 'approve' | 'reject') =>
+    request<ContentPieceItem>(`/api/team/review/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify({ action }),
     }),
-  regenerateWeek: (sprintId: string, weekNumber: number) =>
-    request<{ text: string }>('/api/sprint/regenerate-week', {
+
+  // Notes
+  listNotes: () => request<ContentPieceItem[]>('/api/team/notes'),
+  createNote: (title: string, content: string) =>
+    request<ContentPieceItem>('/api/team/notes', {
       method: 'POST',
-      body: JSON.stringify({ sprintId, weekNumber }),
+      body: JSON.stringify({ title, content }),
     }),
+  updateNote: (id: string, data: { title?: string; content?: string }) =>
+    request<ContentPieceItem>(`/api/team/notes/${id}`, {
+      method: 'PATCH',
+      body: JSON.stringify(data),
+    }),
+  deleteNote: (id: string) =>
+    request<{ success: boolean }>(`/api/team/notes/${id}`, { method: 'DELETE' }),
+  enhanceNote: (id: string) =>
+    request<ContentPieceItem>(`/api/team/notes/${id}/enhance`, { method: 'POST' }),
+
+  // Meetings
+  listMeetings: () => request<MeetingSummary[]>('/api/team/meetings'),
+  getMeeting: (id: string) => request<MeetingSummary>(`/api/team/meetings/${id}`),
+  analyzeMeeting: (data: {
+    title?: string
+    transcript: string
+    participants?: string
+    duration?: string
+  }) =>
+    request<{ id: string; title: string; analysis: MeetingAnalysis; savedAt: string }>(
+      '/api/team/meetings/analyze',
+      { method: 'POST', body: JSON.stringify(data) },
+    ),
+  deleteMeeting: (id: string) =>
+    request<{ success: boolean }>(`/api/team/meetings/${id}`, { method: 'DELETE' }),
 }
